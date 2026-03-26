@@ -1,0 +1,29 @@
+# Monitoring data
+*.csv
+/tmp/
+
+# Ruby
+webapp/.bundle/
+webapp/vendor/
+webapp/*.log
+
+# macOS
+.DS_Store
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+*.error.log
+
+# Editor files
+.vscode/
+.idea/
+*.sublime-*
+
+#Claude
+Claude.*
+
+#image files
+*.png
