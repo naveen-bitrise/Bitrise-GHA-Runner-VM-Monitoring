@@ -7,14 +7,14 @@
 #
 # Required: set these before running
 #   MONITORING_REPO  - GitHub repo containing this project, e.g. "your-org/your-repo"
-#   METRICS_TOKEN    - GitHub token with push access to MONITORING_REPO
+#   METRICS_TOKEN_PLACEHOLDER    - GitHub token with push access to MONITORING_REPO
 #
 # Optional:
 #   VM_NAME          - Identifier for this runner (defaults to hostname)
 
 set -e
 
-MONITORING_REPO="${MONITORING_REPO:-YOUR_ORG/YOUR_REPO}"
+MONITORING_REPO="${MONITORING_REPO:-naveen-bitrise/Bitrise-GHA-Runner-VM-Monitoring}"
 SETUP_DIR="/tmp/gha-monitoring-setup"
 
 echo "Setting up GHA VM Monitoring from ${MONITORING_REPO}..."
@@ -34,7 +34,7 @@ bash install_on_runner.sh
 DAEMON_ENV_FILE="/usr/local/bin/gha-monitoring/daemon.env"
 cat > "$DAEMON_ENV_FILE" <<EOF
 export METRICS_REPO="${MONITORING_REPO}"
-export METRICS_TOKEN="${METRICS_TOKEN}"
+export METRICS_TOKEN="METRICS_TOKEN_PLACEHOLDER"
 export VM_NAME="${VM_NAME:-$(hostname)}"
 EOF
 chmod 600 "$DAEMON_ENV_FILE"

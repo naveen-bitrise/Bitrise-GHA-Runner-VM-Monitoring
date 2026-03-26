@@ -27,3 +27,5 @@ Claude.*
 
 #image files
 *.png
+
+.env
