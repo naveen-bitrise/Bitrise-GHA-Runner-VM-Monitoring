@@ -58,6 +58,8 @@ cd webapp
 bash start.sh
 ```
 
+`start.sh` will automatically install Ruby dependencies on first run.
+
 ### 8. Open the dashboard
 
 Open [http://0.0.0.0:4567](http://0.0.0.0:4567) in your browser. Select a job from the dropdown to view its metrics.
