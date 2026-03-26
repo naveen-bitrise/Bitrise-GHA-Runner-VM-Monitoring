@@ -48,12 +48,14 @@ if [ "$EUID" -eq 0 ]; then
 else
     echo ""
     echo "✓ Scripts installed to: $INSTALL_DIR"
-    echo ""
-    echo "To set up automatic startup, run:"
-    echo "  sudo ./install_on_runner.sh"
-    echo ""
-    echo "Or start manually:"
-    echo "  $INSTALL_DIR/monitor_daemon.sh &"
+    if [ -z "$SKIP_STARTUP_HINT" ]; then
+        echo ""
+        echo "To set up automatic startup, run:"
+        echo "  sudo ./install_on_runner.sh"
+        echo ""
+        echo "Or start manually:"
+        echo "  $INSTALL_DIR/monitor_daemon.sh &"
+    fi
 fi
 
 echo ""
