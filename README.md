@@ -1,309 +1,213 @@
 # GitHub Actions Runner VM Monitoring
 
-A comprehensive monitoring solution for GitHub Actions Mac runners that automatically collects and visualizes system metrics during build execution.
+Monitor CPU, memory, load, and swap on Bitrise-hosted GitHub Actions Mac runners. Metrics are automatically collected during each job, pushed to this repo, and visualised in a local Ruby web app.
 
-## Features
+---
 
-- **Automatic Job Detection**: Daemon automatically detects when GHA jobs start/stop
-- **Real-time Metrics Collection**: Collects metrics every 5 seconds:
-  - CPU usage (user, system, idle)
-  - Memory usage (used, free, cached)
-  - Load averages (1min, 5min, 15min)
-  - Swap usage (used, free)
-- **No Workflow Changes**: Zero modifications needed to GHA YAML files
-- **Web Dashboard**: Ruby-based visualization with 4 interactive graphs
+## Quick Start
+
+### 1. Fork this repo
+
+Fork `naveen-bitrise/Bitrise-GHA-Runner-VM-Monitoring` to your own GitHub account or org.
+
+### 2. Create a Fine-Grained PAT
+
+Go to **GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**:
+
+- **Repository access**: only this forked repo
+- **Permissions → Contents**: `Read and write`
+
+### 3. Add the warmup script to your Bitrise Runner Pool
+
+Copy the contents of `warmup_runner.sh` and paste it into your Bitrise Runner Pool warmup script configuration.
+
+### 4. Replace the repo URL and PAT placeholder
+
+**4a.** Replace the repo URL with your forked repo (currently set to `naveen-bitrise/Bitrise-GHA-Runner-VM-Monitoring`):
+```
+MONITORING_REPO="YOUR_ORG/YOUR_FORKED_REPO"
+```
+
+**4b.** Replace `METRICS_TOKEN_PLACEHOLDER` with the Fine-Grained PAT you created in step 2:
+```
+METRICS_TOKEN="github_pat_xxxx..."
+```
+
+### 5. Run a GHA job on the Bitrise runner
+
+Trigger any GitHub Actions workflow that runs on your Bitrise runner pool. When the job finishes, the runner hook automatically uploads the metrics CSV to the `metrics/` folder in this repo.
+
+### 6. Pull the latest metrics
+
+If you already have the repo cloned locally, pull main to get the new metrics file:
+
+```bash
+git pull origin main
+```
+
+If not, clone the repo first:
+
+```bash
+git clone https://github.com/YOUR_ORG/YOUR_REPO.git
+```
+
+### 7. Start the web app
+
+```bash
+cd webapp
+bash start.sh
+```
+
+### 8. Open the dashboard
+
+Open [http://0.0.0.0:4567](http://0.0.0.0:4567) in your browser. Select a job from the dropdown to view its metrics.
+
+![Dashboard Example](dashboard-screenshot.png)
+
+---
+
+## Dashboard Charts
+
+The dashboard shows four charts for the duration of the selected job. The x-axis on all charts shows elapsed time (MM:SS) from job start. The job start timestamp (GMT) is shown above the charts.
+
+### CPU Total
+
+Shows CPU usage as a percentage over time.
+
+- **user** — CPU time spent running user-space processes (your build steps, compilers, test runners etc.)
+- **system** — CPU time spent in the kernel (I/O, process management, system calls)
+
+High `user` spikes indicate compute-heavy build steps. High `system` may indicate heavy file I/O or process spawning.
+
+### Memory
+
+Stacked area chart showing how physical RAM is distributed across the job.
+
+- **used** — memory actively in use by processes
+- **used_but_can_be_reclaimed** — cached/reclaimable memory (file cache, buffers) — macOS will reclaim this if needed
+- **free** — completely unused memory
+
+The y-axis max reflects the total RAM on the runner. A growing `used` band with shrinking `free` indicates memory pressure.
+
+### Load Average
+
+Shows the system load average over three rolling windows.
+
+- **load1** — 1-minute load average (most responsive to sudden spikes)
+- **load5** — 5-minute load average
+- **load15** — 15-minute load average (smoothed long-term trend)
+
+Load average represents the number of processes waiting for CPU time. On a 14-core runner, values below 14 generally indicate the system is not CPU-saturated.
+
+### Swap
+
+Shows swap space usage in GB.
+
+- **used** — how much swap is currently in use
+- **free** — remaining swap capacity
+
+Swap usage indicates the system ran low on physical RAM and started paging to disk, which significantly slows builds. A flat line near 0 GB is ideal.
+
+---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────┐
-│  GitHub Actions Mac Runner                 │
-│                                             │
-│  ┌─────────────────────────────────────┐   │
-│  │  monitor_daemon.sh                  │   │
-│  │  (Auto-detects GHA jobs)            │   │
-│  └───────────┬─────────────────────────┘   │
-│              │ starts/stops                 │
-│              ▼                               │
-│  ┌─────────────────────────────────────┐   │
-│  │  collect_metrics.sh                 │   │
-│  │  (Collects system metrics)          │   │
-│  └───────────┬─────────────────────────┘   │
-│              │ writes                       │
-│              ▼                               │
-│  /tmp/gha-monitoring/monitoring-*.csv       │
-└─────────────────────────────────────────────┘
-                    │
-                    │ Manual transfer
-                    ▼
-┌─────────────────────────────────────────────┐
-│  Visualization Server                       │
-│                                             │
-│  ┌─────────────────────────────────────┐   │
-│  │  Ruby Web App (Sinatra)             │   │
-│  │  Displays 4 interactive graphs      │   │
-│  └─────────────────────────────────────┘   │
-└─────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│  Bitrise VM Boot                                        │
+│                                                         │
+│  warmup_runner.sh runs:                                 │
+│    1. Clones this repo                                  │
+│    2. Installs collect_metrics.sh + monitor_daemon.sh   │
+│    3. Writes daemon.env (repo + PAT credentials)        │
+│    4. Registers push_metrics_hook.sh as                 │
+│       ACTIONS_RUNNER_HOOK_JOB_COMPLETED                 │
+│    5. Starts monitor_daemon.sh in background            │
+└───────────────────────┬─────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────┐
+│  GHA Job Running                                        │
+│                                                         │
+│  monitor_daemon.sh polls every 5s for Runner.Worker     │
+│    → detects job start                                  │
+│    → starts collect_metrics.sh                          │
+│    → collects CPU, memory, load, swap every 5s          │
+│    → writes to /tmp/gha-monitoring/monitoring-*.csv     │
+└───────────────────────┬─────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────┐
+│  GHA Job Completes                                      │
+│                                                         │
+│  GHA runner invokes push_metrics_hook.sh:               │
+│    → finds latest CSV in /tmp/gha-monitoring/           │
+│    → clones this repo                                   │
+│    → copies CSV to metrics/<vm-name>/                   │
+│    → commits and pushes to main                         │
+│                                                         │
+│  VM is then destroyed                                   │
+└───────────────────────┬─────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────┐
+│  Local Machine                                          │
+│                                                         │
+│  git pull → metrics/<vm-name>/monitoring-*.csv          │
+│                                                         │
+│  cd webapp && bash start.sh                             │
+│    → Sinatra app reads metrics/ folder                  │
+│    → Serves 4 interactive charts at :4567               │
+└─────────────────────────────────────────────────────────┘
 ```
 
-## Installation
-
-### 1. On the GitHub Actions Mac Runner
-
-Install the monitoring scripts (pre-baked into runner image):
-
-```bash
-# Clone or copy the monitoring scripts
-cd /usr/local/bin/gha-monitoring
-cp /path/to/collect_metrics.sh .
-cp /path/to/monitor_daemon.sh .
-chmod +x *.sh
-
-# Create monitoring data directory
-mkdir -p /tmp/gha-monitoring
-
-# Set up the daemon to run at system startup
-# Option A: Using launchd (macOS)
-sudo tee /Library/LaunchDaemons/com.gha.monitor.plist <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.gha.monitor</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/usr/local/bin/gha-monitoring/monitor_daemon.sh</string>
-    </array>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <true/>
-    <key>StandardOutPath</key>
-    <string>/tmp/gha-monitoring/daemon.log</string>
-    <key>StandardErrorPath</key>
-    <string>/tmp/gha-monitoring/daemon.error.log</string>
-</dict>
-</plist>
-EOF
-
-sudo launchctl load /Library/LaunchDaemons/com.gha.monitor.plist
-```
-
-### 2. On the Visualization Server
-
-Install the Ruby web app:
-
-```bash
-cd webapp
-
-# Install dependencies
-bundle install
-
-# Configure data directory (optional)
-export MONITORING_DATA_DIR=/path/to/monitoring/data
-
-# Start the web server
-ruby app.rb
-# Or using rackup for production
-rackup -p 4567
-```
-
-## Usage
-
-### Starting the Monitoring Daemon
-
-The daemon should start automatically via launchd. To manage it manually:
-
-```bash
-# Start daemon
-./monitor_daemon.sh &
-
-# Check if daemon is running
-ps aux | grep monitor_daemon
-
-# Stop daemon
-pkill -f monitor_daemon.sh
-```
-
-### Monitoring Output
-
-- **CSV files** are saved to `/tmp/gha-monitoring/monitoring-YYYYMMDD_HHMMSS.csv`
-- Each file contains metrics for one GHA job
-- Files include timestamp and all metrics in CSV format
-
-### Transferring Data Files
-
-After jobs complete, manually transfer the CSV files:
-
-```bash
-# From runner to visualization server
-scp /tmp/gha-monitoring/monitoring-*.csv user@viz-server:/path/to/webapp/data/
-```
-
-### Viewing the Dashboard
-
-1. Start the web app: `ruby webapp/app.rb`
-2. Open browser: `http://localhost:4567`
-3. Select a monitoring file from the dropdown
-4. View the 4 interactive graphs
-
-## Dashboard Graphs
-
-The web dashboard displays 4 graphs matching your reference design:
-
-1. **CPU Total**: Stacked area chart showing user and system CPU usage
-2. **Memory**: Stacked area chart showing used, cached, and free memory
-3. **Load Average**: Line chart with 1min, 5min, and 15min load averages
-4. **Swap**: Stacked area chart showing used and free swap space
-
-## Configuration
-
-### Monitoring Interval
-
-Edit `collect_metrics.sh` to change the sampling interval:
-
-```bash
-INTERVAL=5  # Change to desired seconds
-```
-
-### Data Output Location
-
-Edit `monitor_daemon.sh` to change the output directory:
-
-```bash
-OUTPUT_DIR="/tmp/gha-monitoring"  # Change to desired path
-```
-
-### Web App Port
-
-Edit `webapp/app.rb` to change the server port:
-
-```ruby
-set :port, 4567  # Change to desired port
-```
-
-### Data Directory for Web App
-
-Set environment variable:
-
-```bash
-export MONITORING_DATA_DIR=/custom/path
-ruby app.rb
-```
-
-## Testing
-
-### Test the Monitoring Script Manually
-
-```bash
-# Run monitoring for 30 seconds
-./collect_metrics.sh /tmp/test-monitoring.csv &
-MONITOR_PID=$!
-sleep 30
-kill $MONITOR_PID
-
-# Check the output
-cat /tmp/test-monitoring.csv
-```
-
-### Test the Daemon
-
-```bash
-# Start daemon in foreground for testing
-./monitor_daemon.sh
-
-# In another terminal, simulate a GHA job by running a process
-# that matches the pattern (e.g., Runner.Worker)
-```
-
-### Test the Web App
-
-```bash
-cd webapp
-bundle install
-ruby app.rb
-
-# Visit http://localhost:4567
-```
-
-## CSV File Format
-
-The monitoring CSV files contain the following columns:
-
-- `timestamp`: Date and time in "YYYY-MM-DD HH:MM:SS" format
-- `cpu_user`: User CPU percentage
-- `cpu_system`: System CPU percentage
-- `cpu_idle`: Idle CPU percentage
-- `cpu_nice`: Nice CPU percentage
-- `memory_used_mb`: Used memory in MB
-- `memory_free_mb`: Free memory in MB
-- `memory_cached_mb`: Cached/reclaimable memory in MB
-- `load1`: 1-minute load average
-- `load5`: 5-minute load average
-- `load15`: 15-minute load average
-- `swap_used_mb`: Used swap in MB
-- `swap_free_mb`: Free swap in MB
-
-## Troubleshooting
-
-### Daemon Not Detecting Jobs
-
-Check that the daemon is looking for the correct process:
-
-```bash
-# Check what GHA runner processes are running
-ps aux | grep -i runner
-
-# Update monitor_daemon.sh if needed to match your runner's process name
-```
-
-### No Data Being Collected
-
-```bash
-# Check daemon logs
-tail -f /tmp/gha-monitoring/daemon.log
-
-# Check if scripts are executable
-ls -la *.sh
-
-# Test manually
-./collect_metrics.sh /tmp/test.csv
-```
-
-### Web App Not Loading Files
-
-```bash
-# Check data directory
-ls -la $MONITORING_DATA_DIR
-
-# Check permissions
-chmod 755 /path/to/data/directory
-chmod 644 /path/to/data/*.csv
-
-# Check web app logs
-```
+### Key Files
+
+| File | Purpose |
+|---|---|
+| `warmup_runner.sh` | VM boot script — installs monitoring and starts the daemon |
+| `install_on_runner.sh` | Copies scripts to `/usr/local/bin/gha-monitoring/` |
+| `monitor_daemon.sh` | Background daemon — detects GHA jobs and starts/stops collection |
+| `collect_metrics.sh` | Samples CPU, memory, load, swap every 5s and writes CSV |
+| `push_metrics_hook.sh` | GHA post-job hook — pushes the CSV to this repo |
+| `metrics/<vm-name>/` | One subfolder per runner VM, one CSV per job |
+| `webapp/app.rb` | Sinatra web app — serves the dashboard |
+| `webapp/views/index.erb` | Dashboard UI with Chart.js graphs |
+
+---
 
 ## Requirements
 
 ### Runner (macOS)
 - Bash 3.2+
 - Standard macOS utilities: `iostat`, `vm_stat`, `sysctl`, `pagesize`
+- Git (for pushing metrics)
 
-### Web Server
+### Local machine (webapp)
 - Ruby 2.7+
-- Bundler
-- Gems: sinatra, puma, csv, json
+- Bundler (`gem install bundler`)
 
-## License
+---
 
-This project is provided as-is for monitoring GitHub Actions runners.
+## Troubleshooting
 
-## Future Enhancements
+**Metrics not being pushed after job**
+Check that `ACTIONS_RUNNER_HOOK_JOB_COMPLETED` was written to `/Users/vagrant/actions-runner/.env`:
+```bash
+cat /Users/vagrant/actions-runner/.env
+```
 
-Potential improvements:
-- Automatic upload from runner to web server
-- Real-time streaming of metrics
-- Historical data comparison
-- Email alerts for resource thresholds
-- Multi-runner support and comparison
+**Daemon not detecting jobs**
+Check daemon logs on the runner:
+```bash
+tail -f /tmp/gha-monitoring/daemon.log
+```
+
+**Push fails with auth error**
+Verify `METRICS_TOKEN` in `/usr/local/bin/gha-monitoring/daemon.env` matches a valid PAT with `Contents: Read and write` on this repo.
+
+**Web app shows no files**
+Confirm you have pulled the latest main branch and that CSV files exist under `metrics/`:
+```bash
+ls metrics/
+```

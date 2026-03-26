@@ -56,11 +56,24 @@ def parse_monitoring_file(filepath)
 
   # Use the maximum total as the constant total memory
   data[:memory][:total] = memory_totals.max.round(2)
+  data[:job_start] = "#{data[:timestamps].first} GMT"
 
   data
 rescue => e
   puts "Error parsing file: #{e.message}"
   nil
+end
+
+# Parse job start time from filename
+def job_start_from_filename(filename)
+  basename = File.basename(filename, '.csv').sub('monitoring-', '')
+  if basename =~ /^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})$/
+    "#{$1}-#{$2}-#{$3} #{$4}:#{$5}:#{$6}"
+  elsif basename =~ /^\d+_\d+_(\d{10})$/
+    Time.at($1.to_i).strftime('%Y-%m-%d %H:%M:%S')
+  else
+    File.mtime(filename).strftime('%Y-%m-%d %H:%M:%S')
+  end
 end
 
 # List available monitoring files across all vm-name subfolders
@@ -71,14 +84,14 @@ get '/api/files' do
     relative = filepath.sub("#{DATA_DIR}/", '')
     parts = relative.split('/')
     vm_name = parts.length > 1 ? parts[0] : 'unknown'
+    job_start = "#{job_start_from_filename(filepath)} GMT"
     {
       name: File.basename(filepath),
       path: relative,
       vm_name: vm_name,
-      size: File.size(filepath),
-      modified: File.mtime(filepath).strftime('%Y-%m-%d %H:%M:%S')
+      job_start: job_start
     }
-  end.sort_by { |f| f[:modified] }.reverse
+  end.sort_by { |f| f[:job_start] }.reverse
 
   files.to_json
 end

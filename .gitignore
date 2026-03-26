@@ -28,5 +28,6 @@ Claude.*
 
 #image files
 *.png
+!dashboard-screenshot.png
 
 .env

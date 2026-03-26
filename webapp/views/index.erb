@@ -83,6 +83,17 @@
             height: 300px;
         }
 
+        .job-start-info {
+            padding: 10px 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #555;
+            font-weight: 600;
+        }
+
         .loading {
             text-align: center;
             padding: 40px;
@@ -136,7 +147,7 @@
                 files.forEach(file => {
                     const option = document.createElement('option');
                     option.value = file.path;
-                    option.textContent = `[${file.vm_name}] ${file.name} (${file.modified})`;
+                    option.textContent = `[${file.vm_name}] ${file.name} (${file.job_start})`;
                     select.appendChild(option);
                 });
 
@@ -180,14 +191,30 @@
             }
         }
 
+        // Convert absolute timestamps to MM:SS elapsed from first timestamp
+        function toRelativeLabels(timestamps) {
+            if (!timestamps.length) return timestamps;
+            const parse = ts => new Date(ts.replace(' ', 'T')).getTime();
+            const start = parse(timestamps[0]);
+            return timestamps.map(ts => {
+                const elapsed = Math.round((parse(ts) - start) / 1000);
+                const mins = Math.floor(elapsed / 60);
+                const secs = elapsed % 60;
+                return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+            });
+        }
+
         // Render all charts
         function renderCharts(data) {
             // Destroy existing charts
             Object.values(charts).forEach(chart => chart.destroy());
             charts = {};
 
+            const relativeLabels = toRelativeLabels(data.timestamps);
+
             // Create charts container
             document.getElementById('content').innerHTML = `
+                <div class="job-start-info">Job started: ${data.job_start}</div>
                 <div class="charts-grid">
                     <div class="chart-container">
                         <div class="chart-title">CPU total</div>
@@ -220,7 +247,7 @@
             charts.cpu = new Chart(document.getElementById('cpuChart'), {
                 type: 'line',
                 data: {
-                    labels: data.timestamps,
+                    labels: relativeLabels,
                     datasets: [
                         {
                             label: 'user',
@@ -269,7 +296,7 @@
             charts.memory = new Chart(document.getElementById('memoryChart'), {
                 type: 'line',
                 data: {
-                    labels: data.timestamps,
+                    labels: relativeLabels,
                     datasets: [
                         {
                             label: 'used',
@@ -331,7 +358,7 @@
             charts.load = new Chart(document.getElementById('loadChart'), {
                 type: 'line',
                 data: {
-                    labels: data.timestamps,
+                    labels: relativeLabels,
                     datasets: [
                         {
                             label: 'load1',
@@ -384,7 +411,7 @@
             charts.swap = new Chart(document.getElementById('swapChart'), {
                 type: 'line',
                 data: {
-                    labels: data.timestamps,
+                    labels: relativeLabels,
                     datasets: [
                         {
                             label: 'free',
