@@ -43,27 +43,15 @@ chmod 600 "$DAEMON_ENV_FILE"
 cp "$SETUP_DIR/push_metrics_hook.sh" /usr/local/bin/gha-monitoring/
 chmod +x /usr/local/bin/gha-monitoring/push_metrics_hook.sh
 
-# Wire the hook into the GHA runner's .env file
+# Wire the hook into the GHA runner's .env file (create if it doesn't exist yet)
 HOOK_SCRIPT="/usr/local/bin/gha-monitoring/push_metrics_hook.sh"
-RUNNER_ENV=""
+RUNNER_ENV="/Users/vagrant/actions-runner/.env"
 
-for candidate in /Users/*/actions-runner /opt/actions-runner /home/*/actions-runner; do
-    if [ -f "${candidate}/.env" ]; then
-        RUNNER_ENV="${candidate}/.env"
-        break
-    fi
-done
-
-if [ -n "$RUNNER_ENV" ]; then
-    # Remove any existing entry and append
-    grep -v "ACTIONS_RUNNER_HOOK_JOB_COMPLETED" "$RUNNER_ENV" > /tmp/runner_env_tmp || true
-    echo "ACTIONS_RUNNER_HOOK_JOB_COMPLETED=${HOOK_SCRIPT}" >> /tmp/runner_env_tmp
-    cp /tmp/runner_env_tmp "$RUNNER_ENV"
-    echo "Runner hook configured in: $RUNNER_ENV"
-else
-    echo "Warning: Could not find GHA runner .env - add this manually:"
-    echo "  ACTIONS_RUNNER_HOOK_JOB_COMPLETED=${HOOK_SCRIPT}"
-fi
+mkdir -p "$(dirname $RUNNER_ENV)"
+grep -v "ACTIONS_RUNNER_HOOK_JOB_COMPLETED" "$RUNNER_ENV" > /tmp/runner_env_tmp 2>/dev/null || true
+echo "ACTIONS_RUNNER_HOOK_JOB_COMPLETED=${HOOK_SCRIPT}" >> /tmp/runner_env_tmp
+cp /tmp/runner_env_tmp "$RUNNER_ENV"
+echo "Runner hook configured in: $RUNNER_ENV"
 
 # Start the daemon now (runs for the lifetime of this VM)
 nohup /usr/local/bin/gha-monitoring/monitor_daemon.sh >> /tmp/gha-monitoring/daemon.log 2>&1 &

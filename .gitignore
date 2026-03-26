@@ -1,5 +1,6 @@
-# Monitoring data
+# Monitoring data (ignore local CSVs but allow metrics folder in repo)
 *.csv
+!metrics/**/*.csv
 /tmp/
 
 # Ruby
