@@ -112,23 +112,24 @@ Swap usage indicates the system ran low on physical RAM and started paging to di
 ┌─────────────────────────────────────────────────────────┐
 │  Bitrise VM Boot                                        │
 │                                                         │
-│  warmup_runner.sh runs:                                 │
+│  scripts/warmup_runner.sh runs:                         │
 │    1. Clones this repo                                  │
-│    2. Installs collect_metrics.sh + monitor_daemon.sh   │
-│       + newrelic_hook.sh + send_* scripts               │
+│    2. Installs scripts/collect_metrics.sh +             │
+│       scripts/monitor_daemon.sh +                       │
+│       scripts/newrelic_hook.sh + send_* scripts         │
 │    3. Writes daemon.env (NR license key + account ID)   │
-│    4. Registers newrelic_hook.sh as                     │
+│    4. Registers scripts/newrelic_hook.sh as             │
 │       ACTIONS_RUNNER_HOOK_JOB_COMPLETED                 │
-│    5. Starts monitor_daemon.sh in background            │
+│    5. Starts scripts/monitor_daemon.sh in background    │
 └───────────────────────┬─────────────────────────────────┘
                         │
                         ▼
 ┌─────────────────────────────────────────────────────────┐
 │  GHA Job Running                                        │
 │                                                         │
-│  monitor_daemon.sh polls every 5s for Runner.Worker     │
+│  scripts/monitor_daemon.sh polls every 5s               │
 │    → detects job start                                  │
-│    → starts collect_metrics.sh                          │
+│    → starts scripts/collect_metrics.sh                  │
 │    → collects CPU, memory, load, swap every 5s          │
 │    → writes to /tmp/gha-monitoring/monitoring-*.csv     │
 └───────────────────────┬─────────────────────────────────┘
@@ -137,12 +138,12 @@ Swap usage indicates the system ran low on physical RAM and started paging to di
 ┌─────────────────────────────────────────────────────────┐
 │  GHA Job Completes                                      │
 │                                                         │
-│  GHA runner invokes newrelic_hook.sh:                   │
+│  GHA runner invokes scripts/newrelic_hook.sh:           │
 │    → finds latest CSV in /tmp/gha-monitoring/           │
-│    → send_metrics_to_newrelic.sh                        │
+│    → scripts/send_metrics_to_newrelic.sh                │
 │        → batch-posts all CSV rows as gauges             │
 │        → New Relic Metrics API                          │
-│    → send_build_info_to_newrelic.sh                     │
+│    → scripts/send_build_info_to_newrelic.sh             │
 │        → posts GHABuildInfo event                       │
 │        → New Relic Events API                           │
 │                                                         │
