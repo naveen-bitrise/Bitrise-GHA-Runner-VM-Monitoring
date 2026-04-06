@@ -31,3 +31,5 @@ Claude.*
 !dashboard-screenshot.png
 
 .env
+*.env
+docs/supabase.env
