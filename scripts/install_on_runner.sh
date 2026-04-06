@@ -3,6 +3,7 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 INSTALL_DIR="/usr/local/bin/gha-monitoring"
 DATA_DIR="/tmp/gha-monitoring"
 PLIST_PATH="/Library/LaunchDaemons/com.gha.monitor.plist"
@@ -23,8 +24,8 @@ mkdir -p "$INSTALL_DIR"
 
 # Copy monitoring scripts
 echo "Installing monitoring scripts..."
-cp collect_metrics.sh "$INSTALL_DIR/"
-cp monitor_daemon.sh "$INSTALL_DIR/"
+cp "$SCRIPT_DIR/collect_metrics.sh" "$INSTALL_DIR/"
+cp "$SCRIPT_DIR/monitor_daemon.sh" "$INSTALL_DIR/"
 chmod +x "$INSTALL_DIR"/*.sh
 
 # Create data directory
@@ -34,7 +35,7 @@ mkdir -p "$DATA_DIR"
 # Install launchd service if running as root
 if [ "$EUID" -eq 0 ]; then
     echo "Installing launchd service..."
-    cp com.gha.monitor.plist "$PLIST_PATH"
+    cp "$SCRIPT_DIR/com.gha.monitor.plist" "$PLIST_PATH"
 
     # Update the plist with the correct path
     sed -i '' "s|/usr/local/bin/gha-monitoring/monitor_daemon.sh|$INSTALL_DIR/monitor_daemon.sh|g" "$PLIST_PATH"
