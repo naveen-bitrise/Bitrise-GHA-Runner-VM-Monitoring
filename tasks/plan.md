@@ -1,4 +1,4 @@
-# Implementation Plan: SPEC-VM-HOOK.md
+# Implementation Plan: docs/SPEC-VM-HOOK.md
 
 ## Context
 
@@ -178,7 +178,7 @@ Change hook registration to point at `newrelic_hook.sh` instead of `push_metrics
 
 ## Task 9 — Configure NR Alerts
 
-No new files. Manual NR UI setup following SPEC-VM-HOOK.md section 8.
+No new files. Manual NR UI setup following docs/SPEC-VM-HOOK.md section 8.
 
 **Depends on:** Task 8 (smoke test) — `runner.os` and `runner.cpu_count` must be confirmed present in real NR data before thresholds can be set accurately.
 

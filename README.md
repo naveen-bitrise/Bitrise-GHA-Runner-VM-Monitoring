@@ -12,21 +12,21 @@ Fork `naveen-bitrise/Bitrise-GHA-Runner-VM-Monitoring` to your own GitHub accoun
 
 ### 2. Get New Relic credentials
 
-You need two values from New Relic:
+You need two values from New Relic. Both are in the same place:
 
-**Ingest License Key**
-→ New Relic → API Keys → Create key → Type: **Ingest - License**
+→ Click your name (bottom left) → **Administration** → **API Keys**
 
-**Account ID**
-→ New Relic → (click your account name, top right) → Account ID (numeric)
+**Account ID** — visible in the **Account ID** column of any row (e.g. `7914226`)
+
+**Ingest License Key** — find a row with Type **INGEST - LICENSE** and copy its value. If none exists, click **Create a key** and select Type: **INGEST - LICENSE**.
 
 ### 3. Add the warmup script to your Bitrise Runner Pool
 
-Copy the contents of `warmup_runner.sh` and paste it into your Bitrise Runner Pool warmup script configuration.
+Copy the contents of `scripts/warmup_runner.sh` and paste it into your Bitrise Runner Pool warmup script configuration.
 
 ### 4. Replace the New Relic placeholders
 
-In `warmup_runner.sh`, replace:
+In `scripts/warmup_runner.sh`, replace:
 
 ```bash
 NR_LICENSE_KEY="NEW_RELIC_LICENSE_KEY_PLACEHOLDER"
@@ -154,13 +154,13 @@ Swap usage indicates the system ran low on physical RAM and started paging to di
 
 | File | Purpose |
 |---|---|
-| `warmup_runner.sh` | VM boot script — installs monitoring and starts the daemon |
-| `install_on_runner.sh` | Copies scripts to `/usr/local/bin/gha-monitoring/` |
-| `monitor_daemon.sh` | Background daemon — detects GHA jobs and starts/stops collection |
-| `collect_metrics.sh` | Samples CPU, memory, load, swap every 5s and writes CSV |
-| `newrelic_hook.sh` | GHA post-job hook — orchestrates sending data to New Relic |
-| `send_metrics_to_newrelic.sh` | Posts CSV rows as batch gauges to NR Metrics API |
-| `send_build_info_to_newrelic.sh` | Posts `GHABuildInfo` event to NR Events API |
+| `scripts/warmup_runner.sh` | VM boot script — installs monitoring and starts the daemon |
+| `scripts/install_on_runner.sh` | Copies scripts to `/usr/local/bin/gha-monitoring/` |
+| `scripts/monitor_daemon.sh` | Background daemon — detects GHA jobs and starts/stops collection |
+| `scripts/collect_metrics.sh` | Samples CPU, memory, load, swap every 5s and writes CSV |
+| `scripts/newrelic_hook.sh` | GHA post-job hook — orchestrates sending data to New Relic |
+| `scripts/send_metrics_to_newrelic.sh` | Posts CSV rows as batch gauges to NR Metrics API |
+| `scripts/send_build_info_to_newrelic.sh` | Posts `GHABuildInfo` event to NR Events API |
 | `newrelic_dashboard.json` | Importable NR dashboard (Dashboards → Import dashboard) |
 | `metrics/<vm-name>/` | Historical CSV files (collected on `main` branch) |
 

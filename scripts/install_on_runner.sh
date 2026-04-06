@@ -23,11 +23,12 @@ mkdir -p "$INSTALL_DIR"
 
 # Copy monitoring scripts
 echo "Installing monitoring scripts..."
-cp collect_metrics.sh "$INSTALL_DIR/"
-cp monitor_daemon.sh "$INSTALL_DIR/"
-cp newrelic_hook.sh "$INSTALL_DIR/"
-cp send_metrics_to_newrelic.sh "$INSTALL_DIR/"
-cp send_build_info_to_newrelic.sh "$INSTALL_DIR/"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cp "$SCRIPT_DIR/collect_metrics.sh" "$INSTALL_DIR/"
+cp "$SCRIPT_DIR/monitor_daemon.sh" "$INSTALL_DIR/"
+cp "$SCRIPT_DIR/newrelic_hook.sh" "$INSTALL_DIR/"
+cp "$SCRIPT_DIR/send_metrics_to_newrelic.sh" "$INSTALL_DIR/"
+cp "$SCRIPT_DIR/send_build_info_to_newrelic.sh" "$INSTALL_DIR/"
 chmod +x "$INSTALL_DIR"/*.sh
 
 # Create data directory
@@ -37,7 +38,7 @@ mkdir -p "$DATA_DIR"
 # Install launchd service if running as root
 if [ "$EUID" -eq 0 ]; then
     echo "Installing launchd service..."
-    cp com.gha.monitor.plist "$PLIST_PATH"
+    cp "$SCRIPT_DIR/../com.gha.monitor.plist" "$PLIST_PATH"
 
     # Update the plist with the correct path
     sed -i '' "s|/usr/local/bin/gha-monitoring/monitor_daemon.sh|$INSTALL_DIR/monitor_daemon.sh|g" "$PLIST_PATH"
@@ -54,7 +55,7 @@ else
     if [ -z "$SKIP_STARTUP_HINT" ]; then
         echo ""
         echo "To set up automatic startup, run:"
-        echo "  sudo ./install_on_runner.sh"
+        echo "  sudo ./scripts/install_on_runner.sh"
         echo ""
         echo "Or start manually:"
         echo "  $INSTALL_DIR/monitor_daemon.sh &"

@@ -23,11 +23,10 @@ echo "Setting up GHA VM Monitoring from ${MONITORING_REPO}..."
 rm -rf "$SETUP_DIR"
 
 # Clone the monitoring repo
-git clone "https://github.com/${MONITORING_REPO}.git" "$SETUP_DIR"
+git clone --branch new-relic --depth 1 "https://github.com/${MONITORING_REPO}.git" "$SETUP_DIR"
 
-# Install the monitoring daemon
-cd "$SETUP_DIR"
-SKIP_STARTUP_HINT=1 bash install_on_runner.sh
+# Install the monitoring daemon (scripts/ contains all shell scripts)
+SKIP_STARTUP_HINT=1 bash "$SETUP_DIR/scripts/install_on_runner.sh"
 
 # Persist New Relic credentials so the hook scripts can read them
 DAEMON_ENV_FILE="/usr/local/bin/gha-monitoring/daemon.env"
@@ -38,9 +37,9 @@ EOF
 chmod 600 "$DAEMON_ENV_FILE"
 
 # Install the New Relic hook scripts
-cp "$SETUP_DIR/newrelic_hook.sh"              /usr/local/bin/gha-monitoring/
-cp "$SETUP_DIR/send_metrics_to_newrelic.sh"   /usr/local/bin/gha-monitoring/
-cp "$SETUP_DIR/send_build_info_to_newrelic.sh" /usr/local/bin/gha-monitoring/
+cp "$SETUP_DIR/scripts/newrelic_hook.sh"               /usr/local/bin/gha-monitoring/
+cp "$SETUP_DIR/scripts/send_metrics_to_newrelic.sh"    /usr/local/bin/gha-monitoring/
+cp "$SETUP_DIR/scripts/send_build_info_to_newrelic.sh" /usr/local/bin/gha-monitoring/
 chmod +x /usr/local/bin/gha-monitoring/newrelic_hook.sh
 chmod +x /usr/local/bin/gha-monitoring/send_metrics_to_newrelic.sh
 chmod +x /usr/local/bin/gha-monitoring/send_build_info_to_newrelic.sh
