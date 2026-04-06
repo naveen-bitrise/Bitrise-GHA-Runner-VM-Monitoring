@@ -25,6 +25,9 @@ mkdir -p "$INSTALL_DIR"
 echo "Installing monitoring scripts..."
 cp collect_metrics.sh "$INSTALL_DIR/"
 cp monitor_daemon.sh "$INSTALL_DIR/"
+cp newrelic_hook.sh "$INSTALL_DIR/"
+cp send_metrics_to_newrelic.sh "$INSTALL_DIR/"
+cp send_build_info_to_newrelic.sh "$INSTALL_DIR/"
 chmod +x "$INSTALL_DIR"/*.sh
 
 # Create data directory

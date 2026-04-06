@@ -5,17 +5,17 @@
 # Usage:
 #   bash warmup_runner.sh
 #
-# Required: set these before running
-#   MONITORING_REPO  - GitHub repo containing this project, e.g. "your-org/your-repo"
-#   METRICS_TOKEN_PLACEHOLDER    - GitHub token with push access to MONITORING_REPO
-#
-# Optional:
-#   VM_NAME          - Identifier for this runner (defaults to hostname)
+# Required: replace the placeholders below before baking into the runner image
+#   NR_LICENSE_KEY  - New Relic Ingest - License key
+#   NR_ACCOUNT_ID   - New Relic numeric account ID
 
 set -e
 
 MONITORING_REPO="naveen-bitrise/Bitrise-GHA-Runner-VM-Monitoring"
 SETUP_DIR="/tmp/gha-monitoring-setup"
+
+NR_LICENSE_KEY="NEW_RELIC_LICENSE_KEY_PLACEHOLDER"
+NR_ACCOUNT_ID="NEW_RELIC_ACCOUNT_ID_PLACEHOLDER"
 
 echo "Setting up GHA VM Monitoring from ${MONITORING_REPO}..."
 
@@ -29,22 +29,24 @@ git clone "https://github.com/${MONITORING_REPO}.git" "$SETUP_DIR"
 cd "$SETUP_DIR"
 SKIP_STARTUP_HINT=1 bash install_on_runner.sh
 
-# Persist METRICS_REPO and METRICS_TOKEN so the launchd daemon can read them
-# These are written to a file sourced by monitor_daemon.sh via the plist environment
+# Persist New Relic credentials so the hook scripts can read them
 DAEMON_ENV_FILE="/usr/local/bin/gha-monitoring/daemon.env"
 cat > "$DAEMON_ENV_FILE" <<EOF
-export METRICS_REPO="${MONITORING_REPO}"
-export METRICS_TOKEN="METRICS_TOKEN_PLACEHOLDER"
-export VM_NAME="${VM_NAME:-$(hostname)}"
+export NEW_RELIC_LICENSE_KEY="${NR_LICENSE_KEY}"
+export NEW_RELIC_ACCOUNT_ID="${NR_ACCOUNT_ID}"
 EOF
 chmod 600 "$DAEMON_ENV_FILE"
 
-# Install the post-job hook script
-cp "$SETUP_DIR/push_metrics_hook.sh" /usr/local/bin/gha-monitoring/
-chmod +x /usr/local/bin/gha-monitoring/push_metrics_hook.sh
+# Install the New Relic hook scripts
+cp "$SETUP_DIR/newrelic_hook.sh"              /usr/local/bin/gha-monitoring/
+cp "$SETUP_DIR/send_metrics_to_newrelic.sh"   /usr/local/bin/gha-monitoring/
+cp "$SETUP_DIR/send_build_info_to_newrelic.sh" /usr/local/bin/gha-monitoring/
+chmod +x /usr/local/bin/gha-monitoring/newrelic_hook.sh
+chmod +x /usr/local/bin/gha-monitoring/send_metrics_to_newrelic.sh
+chmod +x /usr/local/bin/gha-monitoring/send_build_info_to_newrelic.sh
 
 # Wire the hook into the GHA runner's .env file (create if it doesn't exist yet)
-HOOK_SCRIPT="/usr/local/bin/gha-monitoring/push_metrics_hook.sh"
+HOOK_SCRIPT="/usr/local/bin/gha-monitoring/newrelic_hook.sh"
 RUNNER_ENV="/Users/vagrant/actions-runner/.env"
 
 mkdir -p "$(dirname $RUNNER_ENV)"
