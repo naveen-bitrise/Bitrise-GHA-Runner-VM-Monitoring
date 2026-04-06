@@ -6,9 +6,9 @@
 #   bash warmup_runner.sh
 #
 # Required: replace the placeholders below before baking into the runner image
-#   SUPABASE_PROJECT_ID    - Supabase Project ID (Settings → General)
-#   SUPABASE_SECRET_KEY    - Supabase secret key (sb_secret_...)
+#   SUPABASE_PROJECT_ID      - Supabase Project ID (Settings → General)
 #   SUPABASE_PUBLISHABLE_KEY - Supabase publishable key (sb_publishable_...)
+#                              (runner only does INSERTs — secret key not needed here)
 
 set -e
 
@@ -16,7 +16,6 @@ MONITORING_REPO="naveen-bitrise/Bitrise-GHA-Runner-VM-Monitoring"
 SETUP_DIR="/tmp/gha-monitoring-setup"
 
 SUPABASE_PROJECT_ID="SUPABASE_PROJECT_ID_PLACEHOLDER"
-SUPABASE_SECRET_KEY="SUPABASE_SECRET_KEY_PLACEHOLDER"
 SUPABASE_PUBLISHABLE_KEY="SUPABASE_PUBLISHABLE_KEY_PLACEHOLDER"
 
 echo "Setting up GHA VM Monitoring from ${MONITORING_REPO}..."
@@ -34,7 +33,6 @@ SKIP_STARTUP_HINT=1 bash "$SETUP_DIR/scripts/install_on_runner.sh"
 DAEMON_ENV_FILE="/usr/local/bin/gha-monitoring/daemon.env"
 cat > "$DAEMON_ENV_FILE" <<EOF
 export SUPABASE_PROJECT_ID="${SUPABASE_PROJECT_ID}"
-export SUPABASE_SECRET_KEY="${SUPABASE_SECRET_KEY}"
 export SUPABASE_PUBLISHABLE_KEY="${SUPABASE_PUBLISHABLE_KEY}"
 export SUPABASE_URL="https://${SUPABASE_PROJECT_ID}.supabase.co"
 EOF
