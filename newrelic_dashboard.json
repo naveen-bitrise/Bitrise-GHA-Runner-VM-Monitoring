@@ -1,115 +1,11 @@
 {
-  "name": "GHA Runner VM Monitoring",
+  "name": "GHA Runner VM Monitoring v5",
   "description": "CPU, memory, load, swap time-series metrics and build info for Bitrise GHA Mac runners",
   "permissions": "PUBLIC_READ_WRITE",
   "pages": [
     {
-      "name": "VM Metrics",
-      "description": "Time-series VM metrics collected every 5s during each job (FROM Metric)",
-      "widgets": [
-        {
-          "title": "CPU Usage Over Time",
-          "layout": { "column": 1, "row": 1, "width": 8, "height": 3 },
-          "linkedEntityGuids": null,
-          "visualization": { "id": "viz.line" },
-          "rawConfiguration": {
-            "legend": { "enabled": true },
-            "nrqlQueries": [
-              {
-                "accountIds": [0],
-                "query": "SELECT average(gha.vm.cpu.user_pct) AS 'user %', average(gha.vm.cpu.system_pct) AS 'system %', average(gha.vm.cpu.idle_pct) AS 'idle %' FROM Metric WHERE runner.os = '{{machine_type}}' AND runner.cpu_count = '{{cpu_count}}' AND github.workflow = '{{workflow_name}}' AND github.branch = '{{branch}}' AND github.repository = '{{repository}}' TIMESERIES AUTO"
-              }
-            ],
-            "platformOptions": { "ignoreTimeRange": false },
-            "yAxisLeft": { "zero": true }
-          }
-        },
-        {
-          "title": "Build Count",
-          "layout": { "column": 9, "row": 1, "width": 2, "height": 3 },
-          "linkedEntityGuids": null,
-          "visualization": { "id": "viz.billboard" },
-          "rawConfiguration": {
-            "nrqlQueries": [
-              {
-                "accountIds": [0],
-                "query": "SELECT count(*) AS 'Builds' FROM GHABuildInfo WHERE runner_os = '{{machine_type}}' AND cpu_count = '{{cpu_count}}' AND workflow_name = '{{workflow_name}}' AND branch = '{{branch}}' AND repository = '{{repository}}'"
-              }
-            ],
-            "platformOptions": { "ignoreTimeRange": false }
-          }
-        },
-        {
-          "title": "Build Duration p50 / p90",
-          "layout": { "column": 11, "row": 1, "width": 2, "height": 3 },
-          "linkedEntityGuids": null,
-          "visualization": { "id": "viz.billboard" },
-          "rawConfiguration": {
-            "nrqlQueries": [
-              {
-                "accountIds": [0],
-                "query": "SELECT percentile(build_duration_seconds, 50) AS 'p50 (s)', percentile(build_duration_seconds, 90) AS 'p90 (s)' FROM GHABuildInfo WHERE runner_os = '{{machine_type}}' AND cpu_count = '{{cpu_count}}' AND workflow_name = '{{workflow_name}}' AND branch = '{{branch}}' AND repository = '{{repository}}'"
-              }
-            ],
-            "platformOptions": { "ignoreTimeRange": false }
-          }
-        },
-        {
-          "title": "Memory Over Time",
-          "layout": { "column": 1, "row": 4, "width": 6, "height": 3 },
-          "linkedEntityGuids": null,
-          "visualization": { "id": "viz.area" },
-          "rawConfiguration": {
-            "legend": { "enabled": true },
-            "nrqlQueries": [
-              {
-                "accountIds": [0],
-                "query": "SELECT average(gha.vm.memory.used_mb) AS 'used MB', average(gha.vm.memory.cached_mb) AS 'cached MB', average(gha.vm.memory.free_mb) AS 'free MB' FROM Metric WHERE runner.os = '{{machine_type}}' AND runner.cpu_count = '{{cpu_count}}' AND github.workflow = '{{workflow_name}}' AND github.branch = '{{branch}}' AND github.repository = '{{repository}}' TIMESERIES AUTO"
-              }
-            ],
-            "platformOptions": { "ignoreTimeRange": false },
-            "yAxisLeft": { "zero": true }
-          }
-        },
-        {
-          "title": "Load Average Over Time",
-          "layout": { "column": 7, "row": 4, "width": 6, "height": 3 },
-          "linkedEntityGuids": null,
-          "visualization": { "id": "viz.line" },
-          "rawConfiguration": {
-            "legend": { "enabled": true },
-            "nrqlQueries": [
-              {
-                "accountIds": [0],
-                "query": "SELECT average(gha.vm.load.1m) AS 'load 1m', average(gha.vm.load.5m) AS 'load 5m', average(gha.vm.load.15m) AS 'load 15m' FROM Metric WHERE runner.os = '{{machine_type}}' AND runner.cpu_count = '{{cpu_count}}' AND github.workflow = '{{workflow_name}}' AND github.branch = '{{branch}}' AND github.repository = '{{repository}}' TIMESERIES AUTO"
-              }
-            ],
-            "platformOptions": { "ignoreTimeRange": false },
-            "yAxisLeft": { "zero": true }
-          }
-        },
-        {
-          "title": "Swap Over Time",
-          "layout": { "column": 1, "row": 7, "width": 6, "height": 3 },
-          "linkedEntityGuids": null,
-          "visualization": { "id": "viz.area" },
-          "rawConfiguration": {
-            "legend": { "enabled": true },
-            "nrqlQueries": [
-              {
-                "accountIds": [0],
-                "query": "SELECT average(gha.vm.swap.used_mb) AS 'used MB', average(gha.vm.swap.free_mb) AS 'free MB' FROM Metric WHERE runner.os = '{{machine_type}}' AND runner.cpu_count = '{{cpu_count}}' AND github.workflow = '{{workflow_name}}' AND github.branch = '{{branch}}' AND github.repository = '{{repository}}' TIMESERIES AUTO"
-              }
-            ],
-            "platformOptions": { "ignoreTimeRange": false },
-            "yAxisLeft": { "zero": true }
-          }
-        }
-      ]
-    },
-    {
       "name": "Build Info",
-      "description": "Per-job build metrics from GHABuildInfo events",
+      "description": null,
       "widgets": [
         {
           "title": "Build Count",
@@ -119,11 +15,10 @@
           "rawConfiguration": {
             "nrqlQueries": [
               {
-                "accountIds": [0],
-                "query": "SELECT count(*) AS 'Builds' FROM GHABuildInfo WHERE runner_os = '{{machine_type}}' AND cpu_count = '{{cpu_count}}' AND workflow_name = '{{workflow_name}}' AND branch = '{{branch}}' AND repository = '{{repository}}' AND commit_author = '{{commit_author}}'"
+                "accountIds": [7914226],
+                "query": "SELECT count(*) AS 'Builds' FROM GHABuildInfo WHERE runner_os = {{machine_type}} AND cpu_count = {{cpu_count}} AND workflow_name = {{workflow_name}} AND branch = {{branch}} AND repository = {{repository}} AND commit_author = {{commit_author}}"
               }
-            ],
-            "platformOptions": { "ignoreTimeRange": false }
+            ]
           }
         },
         {
@@ -134,11 +29,10 @@
           "rawConfiguration": {
             "nrqlQueries": [
               {
-                "accountIds": [0],
-                "query": "SELECT percentile(build_duration_seconds, 50) AS 'p50 (s)' FROM GHABuildInfo WHERE runner_os = '{{machine_type}}' AND cpu_count = '{{cpu_count}}' AND workflow_name = '{{workflow_name}}' AND branch = '{{branch}}' AND repository = '{{repository}}' AND commit_author = '{{commit_author}}'"
+                "accountIds": [7914226],
+                "query": "SELECT percentile(build_duration_seconds, 50) AS 'p50 (s)' FROM GHABuildInfo WHERE runner_os = {{machine_type}} AND cpu_count = {{cpu_count}} AND workflow_name = {{workflow_name}} AND branch = {{branch}} AND repository = {{repository}} AND commit_author = {{commit_author}}"
               }
-            ],
-            "platformOptions": { "ignoreTimeRange": false }
+            ]
           }
         },
         {
@@ -149,11 +43,10 @@
           "rawConfiguration": {
             "nrqlQueries": [
               {
-                "accountIds": [0],
-                "query": "SELECT percentile(build_duration_seconds, 90) AS 'p90 (s)' FROM GHABuildInfo WHERE runner_os = '{{machine_type}}' AND cpu_count = '{{cpu_count}}' AND workflow_name = '{{workflow_name}}' AND branch = '{{branch}}' AND repository = '{{repository}}' AND commit_author = '{{commit_author}}'"
+                "accountIds": [7914226],
+                "query": "SELECT percentile(build_duration_seconds, 90) AS 'p90 (s)' FROM GHABuildInfo WHERE runner_os = {{machine_type}} AND cpu_count = {{cpu_count}} AND workflow_name = {{workflow_name}} AND branch = {{branch}} AND repository = {{repository}} AND commit_author = {{commit_author}}"
               }
-            ],
-            "platformOptions": { "ignoreTimeRange": false }
+            ]
           }
         },
         {
@@ -164,11 +57,10 @@
           "rawConfiguration": {
             "nrqlQueries": [
               {
-                "accountIds": [0],
-                "query": "SELECT average(build_duration_seconds) AS 'avg (s)' FROM GHABuildInfo WHERE runner_os = '{{machine_type}}' AND cpu_count = '{{cpu_count}}' AND workflow_name = '{{workflow_name}}' AND branch = '{{branch}}' AND repository = '{{repository}}' AND commit_author = '{{commit_author}}'"
+                "accountIds": [7914226],
+                "query": "SELECT average(build_duration_seconds) AS 'avg (s)' FROM GHABuildInfo WHERE runner_os = {{machine_type}} AND cpu_count = {{cpu_count}} AND workflow_name = {{workflow_name}} AND branch = {{branch}} AND repository = {{repository}} AND commit_author = {{commit_author}}"
               }
-            ],
-            "platformOptions": { "ignoreTimeRange": false }
+            ]
           }
         },
         {
@@ -177,15 +69,12 @@
           "linkedEntityGuids": null,
           "visualization": { "id": "viz.line" },
           "rawConfiguration": {
-            "legend": { "enabled": true },
             "nrqlQueries": [
               {
-                "accountIds": [0],
-                "query": "SELECT percentile(build_duration_seconds, 50) AS 'p50 (s)', percentile(build_duration_seconds, 90) AS 'p90 (s)' FROM GHABuildInfo WHERE runner_os = '{{machine_type}}' AND cpu_count = '{{cpu_count}}' AND workflow_name = '{{workflow_name}}' AND branch = '{{branch}}' AND repository = '{{repository}}' AND commit_author = '{{commit_author}}' TIMESERIES 1 hour"
+                "accountIds": [7914226],
+                "query": "SELECT percentile(build_duration_seconds, 50) AS 'p50 (s)', percentile(build_duration_seconds, 90) AS 'p90 (s)' FROM GHABuildInfo WHERE runner_os = {{machine_type}} AND cpu_count = {{cpu_count}} AND workflow_name = {{workflow_name}} AND branch = {{branch}} AND repository = {{repository}} AND commit_author = {{commit_author}} TIMESERIES 1 hour"
               }
-            ],
-            "platformOptions": { "ignoreTimeRange": false },
-            "yAxisLeft": { "zero": true }
+            ]
           }
         },
         {
@@ -196,11 +85,10 @@
           "rawConfiguration": {
             "nrqlQueries": [
               {
-                "accountIds": [0],
-                "query": "SELECT average(build_duration_seconds) AS 'avg (s)' FROM GHABuildInfo WHERE workflow_name = '{{workflow_name}}' AND branch = '{{branch}}' AND repository = '{{repository}}' AND commit_author = '{{commit_author}}' FACET runner_os"
+                "accountIds": [7914226],
+                "query": "SELECT average(build_duration_seconds) AS 'avg (s)' FROM GHABuildInfo WHERE workflow_name = {{workflow_name}} AND branch = {{branch}} AND repository = {{repository}} AND commit_author = {{commit_author}} FACET runner_os"
               }
-            ],
-            "platformOptions": { "ignoreTimeRange": false }
+            ]
           }
         },
         {
@@ -211,11 +99,10 @@
           "rawConfiguration": {
             "nrqlQueries": [
               {
-                "accountIds": [0],
-                "query": "SELECT average(build_duration_seconds) AS 'avg (s)' FROM GHABuildInfo WHERE runner_os = '{{machine_type}}' AND workflow_name = '{{workflow_name}}' AND branch = '{{branch}}' AND repository = '{{repository}}' AND commit_author = '{{commit_author}}' FACET cpu_count"
+                "accountIds": [7914226],
+                "query": "SELECT average(build_duration_seconds) AS 'avg (s)' FROM GHABuildInfo WHERE runner_os = {{machine_type}} AND workflow_name = {{workflow_name}} AND branch = {{branch}} AND repository = {{repository}} AND commit_author = {{commit_author}} FACET cpu_count"
               }
-            ],
-            "platformOptions": { "ignoreTimeRange": false }
+            ]
           }
         },
         {
@@ -226,11 +113,10 @@
           "rawConfiguration": {
             "nrqlQueries": [
               {
-                "accountIds": [0],
-                "query": "SELECT average(build_duration_seconds) AS 'avg (s)' FROM GHABuildInfo WHERE runner_os = '{{machine_type}}' AND cpu_count = '{{cpu_count}}' AND branch = '{{branch}}' AND repository = '{{repository}}' AND commit_author = '{{commit_author}}' FACET workflow_name"
+                "accountIds": [7914226],
+                "query": "SELECT average(build_duration_seconds) AS 'avg (s)' FROM GHABuildInfo WHERE runner_os = {{machine_type}} AND cpu_count = {{cpu_count}} AND branch = {{branch}} AND repository = {{repository}} AND commit_author = {{commit_author}} FACET workflow_name"
               }
-            ],
-            "platformOptions": { "ignoreTimeRange": false }
+            ]
           }
         },
         {
@@ -241,11 +127,10 @@
           "rawConfiguration": {
             "nrqlQueries": [
               {
-                "accountIds": [0],
-                "query": "SELECT average(build_duration_seconds) AS 'avg (s)' FROM GHABuildInfo WHERE runner_os = '{{machine_type}}' AND cpu_count = '{{cpu_count}}' AND workflow_name = '{{workflow_name}}' AND repository = '{{repository}}' AND commit_author = '{{commit_author}}' FACET branch"
+                "accountIds": [7914226],
+                "query": "SELECT average(build_duration_seconds) AS 'avg (s)' FROM GHABuildInfo WHERE runner_os = {{machine_type}} AND cpu_count = {{cpu_count}} AND workflow_name = {{workflow_name}} AND repository = {{repository}} AND commit_author = {{commit_author}} FACET branch"
               }
-            ],
-            "platformOptions": { "ignoreTimeRange": false }
+            ]
           }
         },
         {
@@ -256,11 +141,72 @@
           "rawConfiguration": {
             "nrqlQueries": [
               {
-                "accountIds": [0],
-                "query": "SELECT average(build_duration_seconds) AS 'avg (s)' FROM GHABuildInfo WHERE runner_os = '{{machine_type}}' AND cpu_count = '{{cpu_count}}' AND workflow_name = '{{workflow_name}}' AND branch = '{{branch}}' AND repository = '{{repository}}' FACET commit_author"
+                "accountIds": [7914226],
+                "query": "SELECT average(build_duration_seconds) AS 'avg (s)' FROM GHABuildInfo WHERE runner_os = {{machine_type}} AND cpu_count = {{cpu_count}} AND workflow_name = {{workflow_name}} AND branch = {{branch}} AND repository = {{repository}} FACET commit_author"
               }
-            ],
-            "platformOptions": { "ignoreTimeRange": false }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "VM Metrics",
+      "description": null,
+      "widgets": [
+        {
+          "title": "CPU Usage Over Time",
+          "layout": { "column": 1, "row": 1, "width": 6, "height": 3 },
+          "linkedEntityGuids": null,
+          "visualization": { "id": "viz.line" },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [7914226],
+                "query": "SELECT average(gha.vm.cpu.user_pct) AS 'user %', average(gha.vm.cpu.system_pct) AS 'system %', average(gha.vm.cpu.idle_pct) AS 'idle %' FROM Metric WHERE runner.name = {{vm_name}} TIMESERIES AUTO"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Memory Over Time",
+          "layout": { "column": 7, "row": 1, "width": 6, "height": 3 },
+          "linkedEntityGuids": null,
+          "visualization": { "id": "viz.area" },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [7914226],
+                "query": "SELECT average(gha.vm.memory.used_mb) AS 'used MB', average(gha.vm.memory.cached_mb) AS 'cached MB', average(gha.vm.memory.free_mb) AS 'free MB' FROM Metric WHERE runner.name = {{vm_name}} TIMESERIES AUTO"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Load Average Over Time",
+          "layout": { "column": 1, "row": 4, "width": 6, "height": 3 },
+          "linkedEntityGuids": null,
+          "visualization": { "id": "viz.line" },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [7914226],
+                "query": "SELECT average(`gha.vm.load.1m`) AS 'load 1m', average(`gha.vm.load.5m`) AS 'load 5m', average(`gha.vm.load.15m`) AS 'load 15m' FROM Metric WHERE runner.name = {{vm_name}} TIMESERIES AUTO"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Swap Over Time",
+          "layout": { "column": 7, "row": 4, "width": 6, "height": 3 },
+          "linkedEntityGuids": null,
+          "visualization": { "id": "viz.area" },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [7914226],
+                "query": "SELECT average(gha.vm.swap.used_mb) AS 'used MB', average(gha.vm.swap.free_mb) AS 'free MB' FROM Metric WHERE runner.name = {{vm_name}} TIMESERIES AUTO"
+              }
+            ]
           }
         }
       ]
@@ -268,82 +214,95 @@
   ],
   "variables": [
     {
-      "name": "repository",
-      "items": null,
+      "name": "vm_name",
+      "title": "VM Name",
+      "type": "NRQL",
+      "isMultiSelection": false,
+      "replacementStrategy": "STRING",
       "defaultValues": [],
+      "options": { "hiddenOnVariablesBar": false, "ignoreTimeRange": true, "excluded": true },
       "nrqlQuery": {
-        "accountIds": [0],
-        "query": "SELECT uniques(github.repository) FROM Metric SINCE 1 week ago"
-      },
+        "accountIds": [7914226],
+        "query": "SELECT uniques(runner.name) FROM Metric SINCE 1 week ago"
+      }
+    },
+    {
+      "name": "repository",
       "title": "Repository",
       "type": "NRQL",
       "isMultiSelection": false,
-      "replacementStrategy": "STRING"
+      "replacementStrategy": "STRING",
+      "defaultValues": [],
+      "options": { "hiddenOnVariablesBar": false, "ignoreTimeRange": true, "excluded": true },
+      "nrqlQuery": {
+        "accountIds": [7914226],
+        "query": "SELECT uniques(github.repository) FROM Metric SINCE 1 week ago"
+      }
     },
     {
       "name": "machine_type",
-      "items": null,
-      "defaultValues": [],
-      "nrqlQuery": {
-        "accountIds": [0],
-        "query": "SELECT uniques(runner.os) FROM Metric SINCE 1 week ago"
-      },
       "title": "Machine Type",
       "type": "NRQL",
       "isMultiSelection": false,
-      "replacementStrategy": "STRING"
+      "replacementStrategy": "STRING",
+      "defaultValues": [],
+      "options": { "hiddenOnVariablesBar": false, "ignoreTimeRange": true, "excluded": true },
+      "nrqlQuery": {
+        "accountIds": [7914226],
+        "query": "SELECT uniques(runner.os) FROM Metric SINCE 1 week ago"
+      }
     },
     {
       "name": "cpu_count",
-      "items": null,
-      "defaultValues": [],
-      "nrqlQuery": {
-        "accountIds": [0],
-        "query": "SELECT uniques(runner.cpu_count) FROM Metric SINCE 1 week ago"
-      },
       "title": "vCPU Count",
       "type": "NRQL",
       "isMultiSelection": false,
-      "replacementStrategy": "STRING"
+      "replacementStrategy": "NUMBER",
+      "defaultValues": [],
+      "options": { "hiddenOnVariablesBar": false, "ignoreTimeRange": true, "excluded": true },
+      "nrqlQuery": {
+        "accountIds": [7914226],
+        "query": "SELECT uniques(runner.cpu_count) FROM Metric SINCE 1 week ago"
+      }
     },
     {
       "name": "workflow_name",
-      "items": null,
-      "defaultValues": [],
-      "nrqlQuery": {
-        "accountIds": [0],
-        "query": "SELECT uniques(github.workflow) FROM Metric SINCE 1 week ago"
-      },
       "title": "Workflow",
       "type": "NRQL",
       "isMultiSelection": false,
-      "replacementStrategy": "STRING"
+      "replacementStrategy": "STRING",
+      "defaultValues": [],
+      "options": { "hiddenOnVariablesBar": false, "ignoreTimeRange": true, "excluded": true },
+      "nrqlQuery": {
+        "accountIds": [7914226],
+        "query": "SELECT uniques(github.workflow) FROM Metric SINCE 1 week ago"
+      }
     },
     {
       "name": "branch",
-      "items": null,
-      "defaultValues": [],
-      "nrqlQuery": {
-        "accountIds": [0],
-        "query": "SELECT uniques(github.branch) FROM Metric SINCE 1 week ago"
-      },
       "title": "Branch",
       "type": "NRQL",
       "isMultiSelection": false,
-      "replacementStrategy": "STRING"
+      "replacementStrategy": "STRING",
+      "defaultValues": [],
+      "options": { "hiddenOnVariablesBar": false, "ignoreTimeRange": true, "excluded": true },
+      "nrqlQuery": {
+        "accountIds": [7914226],
+        "query": "SELECT uniques(github.branch) FROM Metric SINCE 1 week ago"
+      }
     },
     {
       "name": "commit_author",
-      "items": null,
-      "defaultValues": [],
-      "nrqlQuery": {
-        "accountIds": [0],
-        "query": "SELECT uniques(commit_author) FROM GHABuildInfo SINCE 1 week ago"
-      },
       "title": "Commit Author",
       "type": "NRQL",
       "isMultiSelection": false,
-      "replacementStrategy": "STRING"
+      "replacementStrategy": "STRING",
+      "defaultValues": [],
+      "options": { "hiddenOnVariablesBar": false, "ignoreTimeRange": true, "excluded": true },
+      "nrqlQuery": {
+        "accountIds": [7914226],
+        "query": "SELECT uniques(commit_author) FROM GHABuildInfo SINCE 1 week ago"
+      }
     }
   ]
 }
