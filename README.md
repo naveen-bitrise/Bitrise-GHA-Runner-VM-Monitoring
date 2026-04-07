@@ -7,6 +7,25 @@ Monitor build and VM metrics on Bitrise-hosted GitHub Actions runners. Metrics a
 
 ---
 
+## Table of Contents
+
+- [Metrics Tracked](#metrics-tracked)
+- [Architecture](#architecture)
+- [Setup](#setup)
+  - [1. Create a Supabase project](#1-create-a-supabase-project)
+  - [2. Run the database setup SQL](#2-run-the-database-setup-sql)
+  - [3. Deploy the GitHub webhook Edge Function](#3-deploy-the-github-webhook-edge-function)
+  - [4. Configure the GitHub webhook](#4-configure-the-github-webhook)
+  - [5. Configure the runner warmup script](#5-configure-the-runner-warmup-script)
+  - [6. Add the warmup script to your Bitrise Runner Pool](#6-add-the-warmup-script-to-your-bitrise-runner-pool)
+  - [7. Start the web app](#7-start-the-web-app)
+- [Key Files](#key-files)
+- [Dashboard](#dashboard)
+- [Requirements](#requirements)
+- [Troubleshooting](#troubleshooting)
+
+---
+
 ## Metrics Tracked
 
 <table><tr>
@@ -213,8 +232,25 @@ cd Bitrise-GHA-Runner-VM-Monitoring
 git checkout supabase
 ```
 
-The webapp requires `SUPABASE_PROJECT_ID` and `SUPABASE_SECRET_KEY` from step 1.
+The webapp requires Ruby and the `SUPABASE_PROJECT_ID` and `SUPABASE_SECRET_KEY` from step 1.
 
+**Install Ruby** (if not already installed — check with `ruby -v`):
+```bash
+# macOS (via Homebrew)
+brew install ruby
+
+# or use a version manager
+brew install rbenv && rbenv install 3.3.0 && rbenv global 3.3.0
+```
+
+**Install dependencies:**
+```bash
+cd webapp
+gem install bundler
+bundle install
+```
+
+**Run the app:**
 ```bash
 cd webapp
 SUPABASE_PROJECT_ID=your_project_id \
@@ -277,7 +313,7 @@ Aggregates data across all jobs. Click a metric card to switch the trend chart.
 - **Failure rate** — % of jobs that did not complete successfully
 - **Queue time (p90 / p50)** — time from job queued to job started
 
-The breakdown chart shows the selected metric sliced by workflow, branch, machine type, or vCPU count.
+The breakdown chart shows the selected metric sliced by workflow, branch, repository, machine type, or vCPU count.
 
 ---
 
