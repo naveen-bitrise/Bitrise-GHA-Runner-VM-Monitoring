@@ -190,7 +190,7 @@ The Edge Function in [`supabase/functions/gha-webhook/index.ts`](supabase/functi
 | Variable | Value |
 |---|---|
 | `GITHUB_WEBHOOK_SECRET` | A secret string you choose — set any alphanumeric value and use the same value when configuring the GitHub webhook in the next step |
-| `RUNNER_NAME_PREFIX` | Optional — only process jobs from runners with this name prefix. Bitrise runner names start with `vm-pool` |
+| `RUNNER_NAME_PREFIX` | Set to `vm-pool` — only jobs from runners whose name starts with this prefix are processed. Bitrise runners use `vm-pool` as the name prefix |
 
 **Disable JWT verification** for this function (it uses HMAC instead): Edge Functions → `gha-webhook` → Settings → uncheck "Verify JWT".
 
