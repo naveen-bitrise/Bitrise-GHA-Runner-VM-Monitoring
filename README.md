@@ -134,7 +134,13 @@ Metrics are retained for **7 days** and then automatically deleted by a pg_cron 
 
 ### 1. Create a Supabase project
 
-Go to [supabase.com](https://supabase.com) and create a new project. Note your **Project ID** from Settings → General.
+Go to [supabase.com](https://supabase.com) and create a new project. Once created, collect the following credentials from **Settings → API** — you will need them in later steps:
+
+| Key | Where to find | Used in |
+|---|---|---|
+| `SUPABASE_PROJECT_ID` | Project Settings → General → Project ID | `warmup_runner.sh` (runner), webapp |
+| `SUPABASE_PUBLISHABLE_KEY` | Settings → API keys → Publishable and secret API Keys → Publishable Key | `warmup_runner.sh` (runner uploads metrics) |
+| `SUPABASE_SECRET_KEY` | Settings → API keys → Publishable and secret API Keys → Secret Key | Webapp only — keep this secret |
 
 ### 2. Run the database setup SQL
 
@@ -154,17 +160,17 @@ The Edge Function in [`supabase/functions/gha-webhook/index.ts`](supabase/functi
 
 **Deploy via the Supabase dashboard:**
 
-1. Go to **Edge Functions** → **Deploy a new function**
-2. Name it `gha-webhook`
+1. Go to **Edge Functions** → **Deploy a new function** → **via Editor**
+2. Name it `gha-webhook` (bottom right of the page)
 3. Paste the contents of `supabase/functions/gha-webhook/index.ts`
 4. Deploy
 
-**Set environment variables** for the function (Edge Functions → `gha-webhook` → Secrets):
+**Set environment variables** (Edge Functions → Secrets):
 
 | Variable | Value |
 |---|---|
-| `GITHUB_WEBHOOK_SECRET` | A secret string you choose (used to verify webhook signatures) |
-| `RUNNER_NAME_PREFIX` | Optional — only process jobs from runners with this name prefix (e.g. `bitrise-`) |
+| `GITHUB_WEBHOOK_SECRET` | A secret string you choose — set any alphanumeric value and use the same value when configuring the GitHub webhook in the next step |
+| `RUNNER_NAME_PREFIX` | Optional — only process jobs from runners with this name prefix. Bitrise runner names start with `vm-pool` |
 
 **Disable JWT verification** for this function (it uses HMAC instead): Edge Functions → `gha-webhook` → Settings → uncheck "Verify JWT".
 
@@ -179,26 +185,18 @@ In your GitHub organisation (or repository): **Settings → Webhooks → Add web
 | Secret | The `GITHUB_WEBHOOK_SECRET` value from step 3 |
 | Events | Select **individual events** → tick **Workflow jobs** only |
 
-### 5. Fork this repo and configure the runner warmup script
+### 5. Configure the runner warmup script
 
-Fork this repo to your own GitHub org or account.
-
-Open `scripts/warmup_runner.sh` and replace the two placeholders:
+Copy the contents of `scripts/warmup_runner.sh` to a text editor and replace the two placeholders with the credentials from step 1:
 
 ```bash
-SUPABASE_PROJECT_ID="SUPABASE_PROJECT_ID_PLACEHOLDER"       # Settings → General
-SUPABASE_PUBLISHABLE_KEY="SUPABASE_PUBLISHABLE_KEY_PLACEHOLDER"  # Settings → API → anon/publishable key
-```
-
-Also update the repo URL to point to your fork:
-
-```bash
-MONITORING_REPO="YOUR_ORG/YOUR_FORKED_REPO"
+SUPABASE_PROJECT_ID="SUPABASE_PROJECT_ID_PLACEHOLDER"
+SUPABASE_PUBLISHABLE_KEY="SUPABASE_PUBLISHABLE_KEY_PLACEHOLDER"
 ```
 
 ### 6. Add the warmup script to your Bitrise Runner Pool
 
-Copy the contents of `scripts/warmup_runner.sh` and paste it into your Bitrise Runner Pool warmup script configuration. The script will:
+Copy the updated script from the step above and paste it into your Bitrise Runner Pool warmup script configuration. The script will:
 - Clone this repo onto each VM at boot
 - Install the monitoring scripts
 - Start the background daemon
@@ -206,7 +204,7 @@ Copy the contents of `scripts/warmup_runner.sh` and paste it into your Bitrise R
 
 ### 7. Start the web app
 
-Clone this repo and check out the `supabase` branch (no fork needed — the webapp only reads from Supabase):
+Clone this repo and check out the `supabase` branch:
 
 ```bash
 git clone https://github.com/naveen-bitrise/Bitrise-GHA-Runner-VM-Monitoring.git
@@ -214,7 +212,7 @@ cd Bitrise-GHA-Runner-VM-Monitoring
 git checkout supabase
 ```
 
-The webapp requires `SUPABASE_PROJECT_ID` and `SUPABASE_SECRET_KEY` (service role key from Settings → API).
+The webapp requires `SUPABASE_PROJECT_ID` and `SUPABASE_SECRET_KEY` from step 1.
 
 ```bash
 cd webapp
