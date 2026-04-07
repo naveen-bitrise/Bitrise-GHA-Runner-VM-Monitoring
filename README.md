@@ -154,7 +154,7 @@ Metrics are retained for **7 days** and then automatically deleted by a pg_cron 
 
 ### 1. Create a Supabase project
 
-Go to [supabase.com](https://supabase.com) and create a new project. Once created, collect the following credentials from **Settings → API** — you will need them in later steps:
+Go to [supabase.com](https://supabase.com) and create a new project — a free tier account should be sufficient. Once created, collect the following credentials from **Settings → API** — you will need them in later steps:
 
 | Key | Where to find | Used in |
 |---|---|---|
