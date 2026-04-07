@@ -184,6 +184,9 @@
     <label for="fBranch">Branch</label>
     <select id="fBranch"><option value="">All</option></select>
 
+    <label for="fRepository">Repository</label>
+    <select id="fRepository"><option value="">All</option></select>
+
     <label for="fRunnerOs">Machine type</label>
     <select id="fRunnerOs"><option value="">All</option></select>
 
@@ -258,10 +261,11 @@
   };
 
   const DIM_LABELS = {
-    workflow:  'workflow',
-    branch:    'branch',
-    runner_os: 'machine type',
-    cpu_count: 'vCPU count'
+    workflow:   'workflow',
+    branch:     'branch',
+    repository: 'repository',
+    runner_os:  'machine type',
+    cpu_count:  'vCPU count'
   };
 
   const COLORS = [
@@ -299,10 +303,11 @@
   function getFilterParams() {
     const p = {};
     const v = id => document.getElementById(id).value;
-    if (v('fWorkflow'))  p.workflow  = v('fWorkflow');
-    if (v('fBranch'))    p.branch    = v('fBranch');
-    if (v('fRunnerOs'))  p.runner_os = v('fRunnerOs');
-    if (v('fCpuCount'))  p.cpu_count = v('fCpuCount');
+    if (v('fWorkflow'))    p.workflow    = v('fWorkflow');
+    if (v('fBranch'))      p.branch      = v('fBranch');
+    if (v('fRepository'))  p.repository  = v('fRepository');
+    if (v('fRunnerOs'))    p.runner_os   = v('fRunnerOs');
+    if (v('fCpuCount'))    p.cpu_count   = v('fCpuCount');
     return p;
   }
 
@@ -359,10 +364,11 @@
       const res  = await fetch('/api/builds/filters');
       const data = await res.json();
       osCpuMap = data.os_cpu_map || {};
-      populateSelect('fWorkflow',  data.workflows);
-      populateSelect('fBranch',    data.branches);
-      populateSelect('fRunnerOs',  data.runner_os_values);
-      populateSelect('fCpuCount',  data.cpu_counts);
+      populateSelect('fWorkflow',   data.workflows);
+      populateSelect('fBranch',     data.branches);
+      populateSelect('fRepository', data.repositories);
+      populateSelect('fRunnerOs',   data.runner_os_values);
+      populateSelect('fCpuCount',   data.cpu_counts);
     } catch (e) { console.error('loadFilters', e); }
     renderBreakdownTabs();
   }
@@ -371,10 +377,11 @@
   function renderBreakdownTabs() {
     const machineSet = !!document.getElementById('fRunnerOs').value;
     const dims = [
-      { key: 'workflow',  label: 'Workflow',     show: !document.getElementById('fWorkflow').value },
-      { key: 'branch',    label: 'Branch',       show: !document.getElementById('fBranch').value },
-      { key: 'runner_os', label: 'Machine type', show: !document.getElementById('fRunnerOs').value },
-      { key: 'cpu_count', label: 'vCPU count',   show: machineSet && !document.getElementById('fCpuCount').value }
+      { key: 'workflow',   label: 'Workflow',    show: !document.getElementById('fWorkflow').value },
+      { key: 'branch',     label: 'Branch',      show: !document.getElementById('fBranch').value },
+      { key: 'repository', label: 'Repository',  show: !document.getElementById('fRepository').value },
+      { key: 'runner_os',  label: 'Machine type',show: !document.getElementById('fRunnerOs').value },
+      { key: 'cpu_count',  label: 'vCPU count',  show: machineSet && !document.getElementById('fCpuCount').value }
     ].filter(d => d.show);
 
     const bar = document.getElementById('breakdownTabs');
@@ -527,7 +534,7 @@
     renderBreakdownTabs();
     refresh();
   });
-  ['fWorkflow','fBranch','fCpuCount'].forEach(id => {
+  ['fWorkflow','fBranch','fRepository','fCpuCount'].forEach(id => {
     document.getElementById(id).addEventListener('change', () => {
       renderBreakdownTabs();
       refresh();
