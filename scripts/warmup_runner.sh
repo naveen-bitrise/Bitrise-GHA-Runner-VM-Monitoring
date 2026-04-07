@@ -48,7 +48,16 @@ chmod +x /usr/local/bin/gha-monitoring/send_build_info_to_supabase.sh
 
 # Wire the hook into the GHA runner's .env file (create if it doesn't exist yet)
 HOOK_SCRIPT="/usr/local/bin/gha-monitoring/supabase_hook.sh"
-RUNNER_ENV="/Users/vagrant/actions-runner/.env"
+
+# Resolve runner home: honour RUNNER_HOME env var, then fall back to OS default
+if [[ -z "${RUNNER_HOME:-}" ]]; then
+  if [[ "$(uname)" == "Darwin" ]]; then
+    RUNNER_HOME="/Users/vagrant"
+  else
+    RUNNER_HOME="/home/runner"
+  fi
+fi
+RUNNER_ENV="${RUNNER_HOME}/actions-runner/.env"
 
 mkdir -p "$(dirname $RUNNER_ENV)"
 grep -v "ACTIONS_RUNNER_HOOK_JOB_COMPLETED" "$RUNNER_ENV" > /tmp/runner_env_tmp 2>/dev/null || true
