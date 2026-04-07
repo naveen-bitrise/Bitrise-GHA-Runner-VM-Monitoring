@@ -91,7 +91,29 @@
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
 
-    .chart-title { font-size: 15px; font-weight: 600; margin-bottom: 14px; color: #333; }
+    .chart-title { font-size: 15px; font-weight: 600; margin-bottom: 14px; color: #333; display: flex; align-items: center; gap: 6px; }
+
+    .info-icon {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 16px; height: 16px; border-radius: 50%;
+      background: #bbb; color: white; font-size: 10px; font-weight: 700;
+      cursor: default; position: relative; flex-shrink: 0;
+      font-style: normal;
+    }
+    .info-icon .tooltip {
+      display: none;
+      position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+      background: #222; color: #fff; font-size: 12px; font-weight: 400;
+      line-height: 1.5; padding: 10px 12px; border-radius: 6px;
+      width: 260px; white-space: normal; z-index: 100;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    }
+    .info-icon .tooltip::after {
+      content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+      border: 6px solid transparent; border-top-color: #222;
+    }
+    .info-icon:hover .tooltip { display: block; }
+
     .chart-canvas { position: relative; height: 300px; }
 
     .loading { text-align: center; padding: 40px; color: #888; }
@@ -230,7 +252,7 @@
 
       const hint = document.getElementById('runHint');
       if (total > 10) {
-        hint.textContent = `Showing 10 of ${total}`;
+        hint.textContent = `Showing most recent 10 of ${total} that match filters`;
         hint.style.display = 'block';
       }
     } catch (e) {
@@ -290,19 +312,27 @@
     document.getElementById('chartsArea').innerHTML = `
       <div class="charts-grid">
         <div class="chart-container">
-          <div class="chart-title">CPU total</div>
+          <div class="chart-title">CPU total
+            <i class="info-icon">i<span class="tooltip">User CPU time is spent executing code in user space, running applications. Kernel CPU time is spent executing code in kernel space, handling system calls, managing hardware interrupts, and performing other core system tasks. There is also time waiting for IO operations and running VMs like the Android emulator.</span></i>
+          </div>
           <div class="chart-canvas"><canvas id="cpuChart"></canvas></div>
         </div>
         <div class="chart-container">
-          <div class="chart-title">Memory</div>
+          <div class="chart-title">Memory
+            <i class="info-icon">i<span class="tooltip">Free is the amount of memory that is completely unallocated and available for use. There is also memory that is used by processes and cannot be reclaimed without a significant performance impact. Lastly there is memory that can be reclaimed from OS caches and buffers on Linux and might be reclaimed on macOS.</span></i>
+          </div>
           <div class="chart-canvas"><canvas id="memoryChart"></canvas></div>
         </div>
         <div class="chart-container">
-          <div class="chart-title">Load average</div>
+          <div class="chart-title">Load average
+            <i class="info-icon">i<span class="tooltip">Load average values (1, 5, 15 minutes) represent the average number of processes waiting to run or in execution. Ideally, these values should be below the number of CPU cores. Values exceeding the core count indicate potential overloading and performance bottlenecks.</span></i>
+          </div>
           <div class="chart-canvas"><canvas id="loadChart"></canvas></div>
         </div>
         <div class="chart-container">
-          <div class="chart-title">Swap</div>
+          <div class="chart-title">Swap
+            <i class="info-icon">i<span class="tooltip">Swapping out memory to disk involves moving inactive data from RAM to disk storage to free up memory for active processes, but it can significantly slow down performance due to the slower access speed of disk storage compared to RAM.</span></i>
+          </div>
           <div class="chart-canvas"><canvas id="swapChart"></canvas></div>
         </div>
       </div>`;

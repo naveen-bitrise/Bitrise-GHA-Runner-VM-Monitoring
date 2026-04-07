@@ -346,3 +346,15 @@ grant execute on function builds_breakdown to service_role;
 grant execute on function job_stats        to service_role;
 grant execute on function job_trend        to service_role;
 grant execute on function job_breakdown    to service_role;
+
+-- -------------------------------------------------------------
+-- Scheduled cleanup: delete metrics older than 7 days
+-- Runs daily at 02:00 UTC via pg_cron (built into Supabase).
+-- Safe to re-run — cron.schedule replaces any existing job
+-- with the same name.
+-- -------------------------------------------------------------
+select cron.schedule(
+  'delete-old-metrics',
+  '0 2 * * *',
+  $$delete from metrics where sampled_at < now() - interval '7 days'$$
+);
