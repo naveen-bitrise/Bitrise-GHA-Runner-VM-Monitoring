@@ -390,8 +390,7 @@
       const labels = rows.map(r => r.week);
       const values = rows.map(r => r.value);
 
-      const title = `${METRIC_LABELS[activeMetric]} — weekly`;
-      document.getElementById('trendTitle').textContent = title;
+      document.getElementById('trendTitle').textContent = METRIC_LABELS[activeMetric];
 
       if (trendChart) trendChart.destroy();
       trendChart = new Chart(document.getElementById('trendChart'), {
@@ -445,7 +444,7 @@
 
       const dimLabel = DIM_LABELS[activeDim] || activeDim;
       document.getElementById('breakdownTitle').textContent =
-        `${METRIC_LABELS[activeMetric]} per ${dimLabel} — weekly`;
+        `${METRIC_LABELS[activeMetric]} per ${dimLabel}`;
 
       if (breakdownChart) breakdownChart.destroy();
       breakdownChart = new Chart(document.getElementById('breakdownChart'), {
