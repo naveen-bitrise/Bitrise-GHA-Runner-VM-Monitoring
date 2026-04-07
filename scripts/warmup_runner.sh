@@ -51,11 +51,7 @@ HOOK_SCRIPT="/usr/local/bin/gha-monitoring/supabase_hook.sh"
 
 # Resolve runner home: honour RUNNER_HOME env var, then fall back to OS default
 if [[ -z "${RUNNER_HOME:-}" ]]; then
-  if [[ "$(uname)" == "Darwin" ]]; then
-    RUNNER_HOME="/Users/vagrant"
-  else
-    RUNNER_HOME="/home/runner"
-  fi
+  RUNNER_HOME="$HOME"
 fi
 RUNNER_ENV="${RUNNER_HOME}/actions-runner/.env"
 

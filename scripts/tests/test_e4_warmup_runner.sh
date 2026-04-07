@@ -15,25 +15,11 @@ else
   fail "warmup_runner.sh hardcodes runner path (missing RUNNER_HOME)"
 fi
 
-# Must default to /Users/vagrant on macOS
-if grep -q '/Users/vagrant' "$WARMUP"; then
-  pass "macOS default /Users/vagrant present"
+# Must use $HOME as the default (works on any OS/user)
+if grep -q 'RUNNER_HOME="$HOME"' "$WARMUP"; then
+  pass "RUNNER_HOME defaults to \$HOME (portable)"
 else
-  fail "macOS default /Users/vagrant missing"
-fi
-
-# Must have a Linux default (/home/runner)
-if grep -q '/home/runner' "$WARMUP"; then
-  pass "Linux default /home/runner present"
-else
-  fail "Linux default /home/runner missing"
-fi
-
-# Must have a uname check for OS detection
-if grep -q 'uname' "$WARMUP"; then
-  pass "warmup_runner.sh has uname OS detection"
-else
-  fail "warmup_runner.sh missing uname OS detection"
+  fail "RUNNER_HOME does not default to \$HOME"
 fi
 
 echo ""
