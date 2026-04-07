@@ -1,463 +1,369 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GHA Runner VM Monitoring</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GHA Runner VM Monitoring</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: #f5f5f5;
-            padding: 20px;
-        }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      padding: 20px;
+    }
 
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-        }
+    .container { max-width: 1400px; margin: 0 auto; }
 
-        h1 {
-            margin-bottom: 20px;
-            color: #333;
-        }
+    h1 { margin-bottom: 20px; color: #333; }
 
-        .file-selector {
-            margin-bottom: 20px;
-            padding: 15px;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
+    .panel {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      padding: 15px;
+      margin-bottom: 16px;
+    }
 
-        .file-selector label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: #555;
-        }
+    .panel > label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      font-size: 13px;
+      color: #555;
+    }
 
-        .file-selector select {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
-        }
+    .filter-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 12px;
+    }
 
-        .file-info {
-            margin-top: 10px;
-            font-size: 13px;
-            color: #666;
-        }
+    .field label {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #666;
+    }
 
-        .charts-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 20px;
-            margin-top: 20px;
-        }
+    .filter-grid select,
+    .filter-grid input[type="date"] {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 13px;
+      background: white;
+    }
 
-        .chart-container {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
+    .run-selector select {
+      width: 100%;
+      padding: 9px 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 13px;
+    }
 
-        .chart-title {
-            font-size: 16px;
-            font-weight: 600;
-            margin-bottom: 15px;
-            color: #333;
-        }
+    .run-hint {
+      margin-top: 6px;
+      font-size: 12px;
+      color: #888;
+    }
 
-        .chart-canvas {
-            position: relative;
-            height: 300px;
-        }
+    .job-info {
+      font-size: 13px;
+      color: #555;
+      font-weight: 600;
+    }
 
-        .job-start-info {
-            padding: 10px 15px;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-            font-size: 14px;
-            color: #555;
-            font-weight: 600;
-        }
+    .charts-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
 
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: #666;
-        }
+    .chart-container {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
 
-        .error {
-            background: #fee;
-            color: #c33;
-            padding: 15px;
-            border-radius: 4px;
-            margin: 20px 0;
-        }
+    .chart-title { font-size: 15px; font-weight: 600; margin-bottom: 14px; color: #333; }
+    .chart-canvas { position: relative; height: 300px; }
 
-        @media (max-width: 768px) {
-            .charts-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
+    .loading { text-align: center; padding: 40px; color: #888; }
+    .error   { text-align: center; padding: 20px; color: #d32f2f; }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>GitHub Actions Runner VM Monitoring</h1>
+<div class="container">
+  <h1>GHA Runner VM Monitoring</h1>
 
-        <div class="file-selector">
-            <label for="fileSelect">Select Monitoring Data:</label>
-            <select id="fileSelect" onchange="loadMonitoringData()">
-                <option value="">-- Select a file --</option>
-            </select>
-            <div id="fileInfo" class="file-info"></div>
-        </div>
-
-        <div id="content">
-            <div class="loading">Select a monitoring file to view data</div>
-        </div>
+  <!-- Filters -->
+  <div class="panel">
+    <label>Filters</label>
+    <div class="filter-grid">
+      <div class="field">
+        <label for="started_from">From</label>
+        <input type="date" id="started_from">
+      </div>
+      <div class="field">
+        <label for="started_to">To</label>
+        <input type="date" id="started_to">
+      </div>
+      <div class="field">
+        <label for="filter_workflow">Workflow</label>
+        <select id="filter_workflow"><option value="">All</option></select>
+      </div>
+      <div class="field">
+        <label for="filter_branch">Branch</label>
+        <select id="filter_branch"><option value="">All</option></select>
+      </div>
+      <div class="field">
+        <label for="filter_repository">Repository</label>
+        <select id="filter_repository"><option value="">All</option></select>
+      </div>
+      <div class="field">
+        <label for="filter_runner_os">Runner OS</label>
+        <select id="filter_runner_os"><option value="">All</option></select>
+      </div>
+      <div class="field">
+        <label for="filter_cpu_count">CPU count</label>
+        <select id="filter_cpu_count"><option value="">All</option></select>
+      </div>
     </div>
+  </div>
 
-    <script>
-        let charts = {};
+  <!-- Run selector -->
+  <div class="panel run-selector">
+    <label for="runSelect">VM Run</label>
+    <select id="runSelect"><option value="">— select a run —</option></select>
+    <div class="run-hint" id="runHint" style="display:none"></div>
+  </div>
 
-        // Load list of available files
-        async function loadFileList() {
-            try {
-                const response = await fetch('/api/files');
-                const files = await response.json();
+  <!-- Job info -->
+  <div class="panel job-info" id="jobInfo" style="display:none"></div>
 
-                const select = document.getElementById('fileSelect');
-                select.innerHTML = '<option value="">-- Select a file --</option>';
+  <!-- Charts -->
+  <div id="chartsArea"></div>
+</div>
 
-                files.forEach(file => {
-                    const option = document.createElement('option');
-                    option.value = file.path;
-                    option.textContent = `[${file.vm_name}] ${file.name} (${file.job_start})`;
-                    select.appendChild(option);
-                });
+<script>
+  let charts = {};
 
-                if (files.length === 0) {
-                    document.getElementById('content').innerHTML =
-                        '<div class="loading">No monitoring files found</div>';
-                }
-            } catch (error) {
-                console.error('Error loading files:', error);
-                document.getElementById('content').innerHTML =
-                    '<div class="error">Error loading file list</div>';
-            }
-        }
+  function filterParams() {
+    const p = new URLSearchParams();
+    const v = id => document.getElementById(id).value;
+    if (v('started_from'))      p.set('started_from',  v('started_from'));
+    if (v('started_to'))        p.set('started_to',    v('started_to'));
+    if (v('filter_workflow'))   p.set('workflow_name', v('filter_workflow'));
+    if (v('filter_branch'))     p.set('branch',        v('filter_branch'));
+    if (v('filter_repository')) p.set('repository',    v('filter_repository'));
+    if (v('filter_runner_os'))  p.set('runner_os',     v('filter_runner_os'));
+    if (v('filter_cpu_count'))  p.set('cpu_count',     v('filter_cpu_count'));
+    return p;
+  }
 
-        // Load and display monitoring data
-        async function loadMonitoringData() {
-            const filename = document.getElementById('fileSelect').value;
-            if (!filename) {
-                document.getElementById('content').innerHTML =
-                    '<div class="loading">Select a monitoring file to view data</div>';
-                return;
-            }
+  function populateSelect(id, values) {
+    const sel = document.getElementById(id);
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">All</option>';
+    values.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v;
+      opt.textContent = v;
+      if (String(v) === String(prev)) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  }
 
-            document.getElementById('content').innerHTML =
-                '<div class="loading">Loading data...</div>';
+  async function loadFilters() {
+    try {
+      const res  = await fetch('/api/vm_filters');
+      const data = await res.json();
+      populateSelect('filter_workflow',   data.workflows);
+      populateSelect('filter_branch',     data.branches);
+      populateSelect('filter_repository', data.repositories);
+      populateSelect('filter_runner_os',  data.runner_os_values);
+      populateSelect('filter_cpu_count',  data.cpu_counts);
+    } catch (e) { console.error('loadFilters', e); }
+  }
 
-            try {
-                const response = await fetch(`/api/data/${filename}`);
-                const data = await response.json();
+  async function loadVmRuns() {
+    const sel = document.getElementById('runSelect');
+    sel.innerHTML = '<option value="">Loading…</option>';
+    document.getElementById('runHint').style.display = 'none';
 
-                if (response.ok) {
-                    renderCharts(data);
-                } else {
-                    document.getElementById('content').innerHTML =
-                        `<div class="error">Error: ${data.error}</div>`;
-                }
-            } catch (error) {
-                console.error('Error loading data:', error);
-                document.getElementById('content').innerHTML =
-                    '<div class="error">Error loading monitoring data</div>';
-            }
-        }
+    try {
+      const res  = await fetch('/api/vm_runs?' + filterParams());
+      const data = await res.json();
+      const { total, runs } = data;
 
-        // Convert absolute timestamps to MM:SS elapsed from first timestamp
-        function toRelativeLabels(timestamps) {
-            if (!timestamps.length) return timestamps;
-            const parse = ts => new Date(ts.replace(' ', 'T')).getTime();
-            const start = parse(timestamps[0]);
-            return timestamps.map(ts => {
-                const elapsed = Math.round((parse(ts) - start) / 1000);
-                const mins = Math.floor(elapsed / 60);
-                const secs = elapsed % 60;
-                return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-            });
-        }
+      sel.innerHTML = '<option value="">— select a run —</option>';
+      runs.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r.run_id;
+        const dur = r.build_duration_seconds ? ` — ${Math.round(r.build_duration_seconds / 60)}m` : '';
+        const ts  = r.started_at ? r.started_at.replace('T', ' ').slice(0, 16) : '';
+        opt.textContent = `${r.vm_name} — ${r.workflow_name || r.run_id} — ${ts}${dur}`;
+        sel.appendChild(opt);
+      });
 
-        // Render all charts
-        function renderCharts(data) {
-            // Destroy existing charts
-            Object.values(charts).forEach(chart => chart.destroy());
-            charts = {};
+      const hint = document.getElementById('runHint');
+      if (total > 10) {
+        hint.textContent = `Showing 10 of ${total}`;
+        hint.style.display = 'block';
+      }
+    } catch (e) {
+      sel.innerHTML = '<option value="">Error loading runs</option>';
+      console.error('loadVmRuns', e);
+    }
+  }
 
-            const relativeLabels = toRelativeLabels(data.timestamps);
+  async function loadMetrics() {
+    const runId = document.getElementById('runSelect').value;
+    if (!runId) {
+      document.getElementById('chartsArea').innerHTML = '';
+      document.getElementById('jobInfo').style.display = 'none';
+      return;
+    }
+    document.getElementById('chartsArea').innerHTML = '<div class="loading">Loading…</div>';
+    try {
+      const res  = await fetch(`/api/metrics/${runId}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'API error');
+      renderCharts(data);
+    } catch (e) {
+      document.getElementById('chartsArea').innerHTML = `<div class="error">Error: ${e.message}</div>`;
+    }
+  }
 
-            // Create charts container
-            document.getElementById('content').innerHTML = `
-                <div class="job-start-info">Job started: ${data.job_start}</div>
-                <div class="charts-grid">
-                    <div class="chart-container">
-                        <div class="chart-title">CPU total</div>
-                        <div class="chart-canvas">
-                            <canvas id="cpuChart"></canvas>
-                        </div>
-                    </div>
-                    <div class="chart-container">
-                        <div class="chart-title">Memory</div>
-                        <div class="chart-canvas">
-                            <canvas id="memoryChart"></canvas>
-                        </div>
-                    </div>
-                    <div class="chart-container">
-                        <div class="chart-title">Load average</div>
-                        <div class="chart-canvas">
-                            <canvas id="loadChart"></canvas>
-                        </div>
-                    </div>
-                    <div class="chart-container">
-                        <div class="chart-title">Swap</div>
-                        <div class="chart-canvas">
-                            <canvas id="swapChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-            `;
+  function toRelativeLabels(timestamps) {
+    if (!timestamps.length) return timestamps;
+    const parse = ts => new Date(ts.replace(' ', 'T')).getTime();
+    const start = parse(timestamps[0]);
+    return timestamps.map(ts => {
+      const elapsed = Math.round((parse(ts) - start) / 1000);
+      const mins = Math.floor(elapsed / 60);
+      const secs = elapsed % 60;
+      return `${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
+    });
+  }
 
-            // CPU Chart
-            charts.cpu = new Chart(document.getElementById('cpuChart'), {
-                type: 'line',
-                data: {
-                    labels: relativeLabels,
-                    datasets: [
-                        {
-                            label: 'user',
-                            data: data.cpu.user,
-                            borderColor: '#ff9800',
-                            backgroundColor: 'rgba(255, 152, 0, 0.3)',
-                            fill: 'origin',
-                            tension: 0.1
-                        },
-                        {
-                            label: 'system',
-                            data: data.cpu.system,
-                            borderColor: '#2196f3',
-                            backgroundColor: 'rgba(33, 150, 243, 0.3)',
-                            fill: 'origin',
-                            tension: 0.1
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            stacked: false,
-                            ticks: {
-                                callback: value => value + '%'
-                            }
-                        },
-                        x: {
-                            ticks: {
-                                maxTicksLimit: 10
-                            }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            position: 'bottom'
-                        }
-                    }
-                }
-            });
+  function renderCharts(data) {
+    Object.values(charts).forEach(c => c.destroy());
+    charts = {};
 
-            // Memory Chart - Stacked area with free at top
-            charts.memory = new Chart(document.getElementById('memoryChart'), {
-                type: 'line',
-                data: {
-                    labels: relativeLabels,
-                    datasets: [
-                        {
-                            label: 'used',
-                            data: data.memory.used,
-                            borderColor: '#9c27b0',
-                            backgroundColor: 'rgba(156, 39, 176, 0.6)',
-                            fill: 'origin',
-                            tension: 0.1
-                        },
-                        {
-                            label: 'used_but_can_be_reclaimed',
-                            data: data.memory.cached,
-                            borderColor: '#2196f3',
-                            backgroundColor: 'rgba(33, 150, 243, 0.6)',
-                            fill: '-1',
-                            tension: 0.1
-                        },
-                        {
-                            label: 'free',
-                            data: data.memory.free,
-                            borderColor: '#ffc107',
-                            backgroundColor: 'rgba(255, 193, 7, 0.6)',
-                            fill: '-1',
-                            tension: 0.1
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: {
-                        mode: 'index'
-                    },
-                    scales: {
-                        y: {
-                            stacked: true,
-                            beginAtZero: true,
-                            max: data.memory.total,
-                            ticks: {
-                                callback: value => value.toFixed(1) + ' GB'
-                            }
-                        },
-                        x: {
-                            ticks: {
-                                maxTicksLimit: 10
-                            }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                            reverse: true
-                        }
-                    }
-                }
-            });
+    const info = document.getElementById('jobInfo');
+    if (data.job_start) {
+      const dur = data.duration_seconds ? ` · ${Math.round(data.duration_seconds / 60)} min` : '';
+      info.textContent = `Job started: ${data.job_start}${dur}`;
+      info.style.display = 'block';
+    }
 
-            // Load Average Chart
-            charts.load = new Chart(document.getElementById('loadChart'), {
-                type: 'line',
-                data: {
-                    labels: relativeLabels,
-                    datasets: [
-                        {
-                            label: 'load1',
-                            data: data.load.load1,
-                            borderColor: '#9c27b0',
-                            backgroundColor: 'rgba(156, 39, 176, 0.2)',
-                            fill: false,
-                            tension: 0.1
-                        },
-                        {
-                            label: 'load5',
-                            data: data.load.load5,
-                            borderColor: '#2196f3',
-                            backgroundColor: 'rgba(33, 150, 243, 0.2)',
-                            fill: false,
-                            tension: 0.1
-                        },
-                        {
-                            label: 'load15',
-                            data: data.load.load15,
-                            borderColor: '#ffc107',
-                            backgroundColor: 'rgba(255, 193, 7, 0.2)',
-                            fill: false,
-                            tension: 0.1
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true
-                        },
-                        x: {
-                            ticks: {
-                                maxTicksLimit: 10
-                            }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            position: 'bottom'
-                        }
-                    }
-                }
-            });
+    const labels = toRelativeLabels(data.timestamps);
 
-            // Swap Chart
-            charts.swap = new Chart(document.getElementById('swapChart'), {
-                type: 'line',
-                data: {
-                    labels: relativeLabels,
-                    datasets: [
-                        {
-                            label: 'free',
-                            data: data.swap.free,
-                            borderColor: '#2196f3',
-                            backgroundColor: 'rgba(33, 150, 243, 0.3)',
-                            fill: true,
-                            tension: 0.1
-                        },
-                        {
-                            label: 'used',
-                            data: data.swap.used,
-                            borderColor: '#9c27b0',
-                            backgroundColor: 'rgba(156, 39, 176, 0.3)',
-                            fill: true,
-                            tension: 0.1
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                callback: value => value.toFixed(1) + ' GB'
-                            }
-                        },
-                        x: {
-                            ticks: {
-                                maxTicksLimit: 10
-                            }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            position: 'bottom'
-                        }
-                    }
-                }
-            });
-        }
+    document.getElementById('chartsArea').innerHTML = `
+      <div class="charts-grid">
+        <div class="chart-container">
+          <div class="chart-title">CPU total</div>
+          <div class="chart-canvas"><canvas id="cpuChart"></canvas></div>
+        </div>
+        <div class="chart-container">
+          <div class="chart-title">Memory</div>
+          <div class="chart-canvas"><canvas id="memoryChart"></canvas></div>
+        </div>
+        <div class="chart-container">
+          <div class="chart-title">Load average</div>
+          <div class="chart-canvas"><canvas id="loadChart"></canvas></div>
+        </div>
+        <div class="chart-container">
+          <div class="chart-title">Swap</div>
+          <div class="chart-canvas"><canvas id="swapChart"></canvas></div>
+        </div>
+      </div>`;
 
-        // Initialize
-        loadFileList();
-    </script>
+    charts.cpu = new Chart(document.getElementById('cpuChart'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: 'user',   data: data.cpu.user,   borderColor: '#ff9800', backgroundColor: 'rgba(255,152,0,0.3)',   fill: 'origin', tension: 0.1 },
+          { label: 'system', data: data.cpu.system, borderColor: '#2196f3', backgroundColor: 'rgba(33,150,243,0.3)', fill: 'origin', tension: 0.1 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: { y: { beginAtZero: true, ticks: { callback: v => v + '%' } }, x: { ticks: { maxTicksLimit: 10 } } },
+        plugins: { legend: { position: 'bottom' } }
+      }
+    });
+
+    charts.memory = new Chart(document.getElementById('memoryChart'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: 'used',                      data: data.memory.used,   borderColor: '#9c27b0', backgroundColor: 'rgba(156,39,176,0.6)', fill: 'origin', tension: 0.1 },
+          { label: 'used_but_can_be_reclaimed',  data: data.memory.cached, borderColor: '#2196f3', backgroundColor: 'rgba(33,150,243,0.6)',  fill: '-1',     tension: 0.1 },
+          { label: 'free',                       data: data.memory.free,   borderColor: '#ffc107', backgroundColor: 'rgba(255,193,7,0.6)',   fill: '-1',     tension: 0.1 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index' },
+        scales: {
+          y: { stacked: true, beginAtZero: true, max: data.memory.total, ticks: { callback: v => v.toFixed(1) + ' GB' } },
+          x: { ticks: { maxTicksLimit: 10 } }
+        },
+        plugins: { legend: { position: 'bottom', reverse: true } }
+      }
+    });
+
+    charts.load = new Chart(document.getElementById('loadChart'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: 'load1',  data: data.load.load1,  borderColor: '#9c27b0', backgroundColor: 'rgba(156,39,176,0.2)', fill: false, tension: 0.1 },
+          { label: 'load5',  data: data.load.load5,  borderColor: '#2196f3', backgroundColor: 'rgba(33,150,243,0.2)',  fill: false, tension: 0.1 },
+          { label: 'load15', data: data.load.load15, borderColor: '#ffc107', backgroundColor: 'rgba(255,193,7,0.2)',   fill: false, tension: 0.1 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: { y: { beginAtZero: true }, x: { ticks: { maxTicksLimit: 10 } } },
+        plugins: { legend: { position: 'bottom' } }
+      }
+    });
+
+    charts.swap = new Chart(document.getElementById('swapChart'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: 'free', data: data.swap.free, borderColor: '#2196f3', backgroundColor: 'rgba(33,150,243,0.3)', fill: true, tension: 0.1 },
+          { label: 'used', data: data.swap.used, borderColor: '#9c27b0', backgroundColor: 'rgba(156,39,176,0.3)', fill: true, tension: 0.1 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: { y: { beginAtZero: true, ticks: { callback: v => v.toFixed(1) + ' GB' } }, x: { ticks: { maxTicksLimit: 10 } } },
+        plugins: { legend: { position: 'bottom' } }
+      }
+    });
+  }
+
+  ['started_from','started_to','filter_workflow','filter_branch',
+   'filter_repository','filter_runner_os','filter_cpu_count'].forEach(id => {
+    document.getElementById(id).addEventListener('change', loadVmRuns);
+  });
+  document.getElementById('runSelect').addEventListener('change', loadMetrics);
+
+  loadFilters().then(loadVmRuns);
+</script>
 </body>
 </html>

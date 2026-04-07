@@ -1,125 +1,137 @@
 require 'sinatra'
-require 'csv'
 require 'json'
+require 'net/http'
+require 'openssl'
+require 'uri'
 
-# Configuration
-DATA_DIR = ENV['MONITORING_DATA_DIR'] || File.expand_path('../../metrics', __FILE__)
+SUPABASE_URL        = "https://#{ENV.fetch('SUPABASE_PROJECT_ID')}.supabase.co"
+SUPABASE_SECRET_KEY = ENV.fetch('SUPABASE_SECRET_KEY')
 
 configure do
   set :bind, '0.0.0.0'
   set :port, 4567
 end
 
-# Helper to read and parse CSV file
-def parse_monitoring_file(filepath)
-  data = {
-    timestamps: [],
-    cpu: { user: [], system: [], idle: [], nice: [] },
-    memory: { used: [], free: [], cached: [], total: 0 },
-    load: { load1: [], load5: [], load15: [] },
-    swap: { used: [], free: [] }
-  }
+# --- Supabase helpers ---
 
-  memory_totals = []
-
-  CSV.foreach(filepath, headers: true) do |row|
-    data[:timestamps] << row['timestamp']
-
-    # CPU data
-    data[:cpu][:user] << row['cpu_user'].to_f
-    data[:cpu][:system] << row['cpu_system'].to_f
-    data[:cpu][:idle] << row['cpu_idle'].to_f
-    data[:cpu][:nice] << row['cpu_nice'].to_f
-
-    # Memory data (convert to GB for display)
-    used_gb = row['memory_used_mb'].to_f / 1024
-    free_gb = row['memory_free_mb'].to_f / 1024
-    cached_gb = row['memory_cached_mb'].to_f / 1024
-
-    # Calculate total memory (used + free + cached)
-    total_gb = used_gb + free_gb + cached_gb
-    memory_totals << total_gb
-
-    data[:memory][:used] << used_gb
-    data[:memory][:cached] << cached_gb
-    data[:memory][:free] << free_gb
-
-    # Load average
-    data[:load][:load1] << row['load1'].to_f
-    data[:load][:load5] << row['load5'].to_f
-    data[:load][:load15] << row['load15'].to_f
-
-    # Swap data (convert to GB for display)
-    data[:swap][:used] << (row['swap_used_mb'].to_f / 1024)
-    data[:swap][:free] << (row['swap_free_mb'].to_f / 1024)
-  end
-
-  # Use the maximum total as the constant total memory
-  data[:memory][:total] = memory_totals.max.round(2)
-  data[:job_start] = "#{data[:timestamps].first} GMT"
-
-  data
-rescue => e
-  puts "Error parsing file: #{e.message}"
-  nil
+# Low-level GET — params is an array of pairs to allow duplicate keys
+# (e.g. two started_at filters: gte + lte)
+def supabase_request(path, pairs = [], extra_headers = {})
+  uri = URI("#{SUPABASE_URL}#{path}")
+  uri.query = URI.encode_www_form(pairs) unless pairs.empty?
+  req = Net::HTTP::Get.new(uri)
+  req['apikey']           = SUPABASE_SECRET_KEY
+  req['Authorization']    = "Bearer #{SUPABASE_SECRET_KEY}"
+  req['Content-Type']     = 'application/json'
+  req['Accept-Encoding']  = 'identity'
+  extra_headers.each { |k, v| req[k] = v }
+  Net::HTTP.start(uri.hostname, uri.port, use_ssl: true, verify_mode: OpenSSL::SSL::VERIFY_NONE) { |http| http.request(req) }
 end
 
-# Parse job start time from filename
-def job_start_from_filename(filename)
-  basename = File.basename(filename, '.csv').sub('monitoring-', '')
-  if basename =~ /^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})$/
-    "#{$1}-#{$2}-#{$3} #{$4}:#{$5}:#{$6}"
-  elsif basename =~ /^\d+_\d+_(\d{10})$/
-    Time.at($1.to_i).strftime('%Y-%m-%d %H:%M:%S')
-  else
-    File.mtime(filename).strftime('%Y-%m-%d %H:%M:%S')
-  end
+def supabase_get(path, params = {})
+  JSON.parse(supabase_request(path, params.to_a).body)
 end
 
-# List available monitoring files across all vm-name subfolders
-get '/api/files' do
+def supabase_rpc(fn, params = {})
+  uri = URI("#{SUPABASE_URL}/rest/v1/rpc/#{fn}")
+  req = Net::HTTP::Post.new(uri)
+  req['apikey']        = SUPABASE_SECRET_KEY
+  req['Authorization'] = "Bearer #{SUPABASE_SECRET_KEY}"
+  req['Content-Type']  = 'application/json'
+  req.body = params.to_json
+  res = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true, verify_mode: OpenSSL::SSL::VERIFY_NONE) { |http| http.request(req) }
+  JSON.parse(res.body)
+end
+
+# --- VM Metrics API ---
+
+get '/api/vm_filters' do
   content_type :json
-
-  files = Dir.glob(File.join(DATA_DIR, '**', 'monitoring-*.csv')).map do |filepath|
-    relative = filepath.sub("#{DATA_DIR}/", '')
-    parts = relative.split('/')
-    vm_name = parts.length > 1 ? parts[0] : 'unknown'
-    job_start = "#{job_start_from_filename(filepath)} GMT"
-    {
-      name: File.basename(filepath),
-      path: relative,
-      vm_name: vm_name,
-      job_start: job_start
-    }
-  end.sort_by { |f| f[:job_start] }.reverse
-
-  files.to_json
+  rows = supabase_get('/rest/v1/builds', {
+    select: 'workflow_name,branch,repository,runner_os,cpu_count'
+  })
+  {
+    workflows:        rows.map { |r| r['workflow_name'] }.compact.uniq.sort,
+    branches:         rows.map { |r| r['branch'] }.compact.uniq.sort,
+    repositories:     rows.map { |r| r['repository'] }.compact.uniq.sort,
+    runner_os_values: rows.map { |r| r['runner_os'] }.compact.uniq.sort,
+    cpu_counts:       rows.map { |r| r['cpu_count'] }.compact.uniq.sort
+  }.to_json
 end
 
-# Get data for a specific monitoring file (path may include vm_name subfolder)
-get '/api/data/*' do
+get '/api/vm_runs' do
   content_type :json
+  pairs = [
+    ['select', 'run_id,vm_name,workflow_name,branch,started_at,build_duration_seconds'],
+    ['order',  'started_at.desc'],
+    ['limit',  '10']
+  ]
+  pairs << ['started_at',    "gte.#{params['started_from']}"] unless params['started_from'].to_s.strip.empty?
+  pairs << ['started_at',    "lte.#{params['started_to']}"]   unless params['started_to'].to_s.strip.empty?
+  pairs << ['workflow_name', "eq.#{params['workflow_name']}"] unless params['workflow_name'].to_s.strip.empty?
+  pairs << ['branch',        "eq.#{params['branch']}"]        unless params['branch'].to_s.strip.empty?
+  pairs << ['repository',    "eq.#{params['repository']}"]    unless params['repository'].to_s.strip.empty?
+  pairs << ['runner_os',     "eq.#{params['runner_os']}"]     unless params['runner_os'].to_s.strip.empty?
+  pairs << ['cpu_count',     "eq.#{params['cpu_count']}"]     unless params['cpu_count'].to_s.strip.empty?
 
-  relative_path = params['splat'][0]
-  filepath = File.join(DATA_DIR, relative_path)
-
-  if File.exist?(filepath) && File.realpath(filepath).start_with?(File.realpath(DATA_DIR))
-    data = parse_monitoring_file(filepath)
-    if data
-      data.to_json
-    else
-      status 500
-      { error: 'Failed to parse file' }.to_json
-    end
-  else
-    status 404
-    { error: 'File not found' }.to_json
-  end
+  res   = supabase_request('/rest/v1/builds', pairs, 'Prefer' => 'count=exact')
+  total = res['content-range']&.split('/')&.last.to_i || 0
+  runs  = JSON.parse(res.body)
+  { total: total, runs: runs }.to_json
 end
 
-# Main dashboard
+get '/api/metrics/:run_id' do
+  content_type :json
+  run_id = params['run_id']
+
+  metrics_rows = supabase_get('/rest/v1/metrics', {
+    select: 'sampled_at,cpu_user,cpu_system,cpu_idle,cpu_nice,' \
+            'memory_used_mb,memory_free_mb,memory_cached_mb,' \
+            'load1,load5,load15,swap_used_mb,swap_free_mb',
+    run_id: "eq.#{run_id}",
+    order:  'sampled_at.asc'
+  })
+
+  build = supabase_get('/rest/v1/builds', {
+    select: 'started_at,build_duration_seconds',
+    run_id: "eq.#{run_id}",
+    limit:  '1'
+  }).first || {}
+
+  memory_totals = metrics_rows.map do |r|
+    (r['memory_used_mb'].to_f + r['memory_free_mb'].to_f + r['memory_cached_mb'].to_f) / 1024
+  end
+
+  {
+    timestamps: metrics_rows.map { |r| r['sampled_at'] },
+    cpu: {
+      user:   metrics_rows.map { |r| r['cpu_user'].to_f },
+      system: metrics_rows.map { |r| r['cpu_system'].to_f },
+      idle:   metrics_rows.map { |r| r['cpu_idle'].to_f },
+      nice:   metrics_rows.map { |r| r['cpu_nice'].to_f }
+    },
+    memory: {
+      used:   metrics_rows.map { |r| r['memory_used_mb'].to_f / 1024 },
+      free:   metrics_rows.map { |r| r['memory_free_mb'].to_f / 1024 },
+      cached: metrics_rows.map { |r| r['memory_cached_mb'].to_f / 1024 },
+      total:  memory_totals.max&.round(2) || 0
+    },
+    load: {
+      load1:  metrics_rows.map { |r| r['load1'].to_f },
+      load5:  metrics_rows.map { |r| r['load5'].to_f },
+      load15: metrics_rows.map { |r| r['load15'].to_f }
+    },
+    swap: {
+      used: metrics_rows.map { |r| r['swap_used_mb'].to_f / 1024 },
+      free: metrics_rows.map { |r| r['swap_free_mb'].to_f / 1024 }
+    },
+    job_start:        build['started_at'] || '',
+    duration_seconds: build['build_duration_seconds'].to_i
+  }.to_json
+end
+
+# --- Pages ---
+
 get '/' do
   erb :index
 end
-
-__END__
