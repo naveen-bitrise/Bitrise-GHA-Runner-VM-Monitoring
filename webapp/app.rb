@@ -94,7 +94,7 @@ get '/api/metrics/:run_id' do
   })
 
   build = supabase_get('/rest/v1/builds', {
-    select: 'started_at,build_duration_seconds',
+    select: 'started_at,build_duration_seconds,cpu_count',
     run_id: "eq.#{run_id}",
     limit:  '1'
   }).first || {}
@@ -127,7 +127,8 @@ get '/api/metrics/:run_id' do
       free: metrics_rows.map { |r| r['swap_free_mb'].to_f / 1024 }
     },
     job_start:        build['started_at'] || '',
-    duration_seconds: build['build_duration_seconds'].to_i
+    duration_seconds: build['build_duration_seconds'].to_i,
+    cpu_count:        build['cpu_count'].to_i
   }.to_json
 end
 

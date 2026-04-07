@@ -344,6 +344,17 @@
       }
     });
 
+    const cpuLine = data.cpu_count > 0 ? [{
+      label: `CPU count (${data.cpu_count})`,
+      data: labels.map(() => data.cpu_count),
+      borderColor: 'rgba(200,0,0,0.5)',
+      borderDash: [6, 4],
+      borderWidth: 1.5,
+      pointRadius: 0,
+      fill: false,
+      tension: 0
+    }] : [];
+
     charts.load = new Chart(document.getElementById('loadChart'), {
       type: 'line',
       data: {
@@ -351,7 +362,8 @@
         datasets: [
           { label: 'load1',  data: data.load.load1,  borderColor: '#9c27b0', backgroundColor: 'rgba(156,39,176,0.2)', fill: false, tension: 0.1 },
           { label: 'load5',  data: data.load.load5,  borderColor: '#2196f3', backgroundColor: 'rgba(33,150,243,0.2)',  fill: false, tension: 0.1 },
-          { label: 'load15', data: data.load.load15, borderColor: '#ffc107', backgroundColor: 'rgba(255,193,7,0.2)',   fill: false, tension: 0.1 }
+          { label: 'load15', data: data.load.load15, borderColor: '#ffc107', backgroundColor: 'rgba(255,193,7,0.2)',   fill: false, tension: 0.1 },
+          ...cpuLine
         ]
       },
       options: {
