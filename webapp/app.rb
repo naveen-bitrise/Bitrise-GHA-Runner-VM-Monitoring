@@ -143,7 +143,6 @@ end
 
 def builds_rpc_params(p)
   h = {}
-  h[:p_weeks]      = p['weeks'].to_i     unless p['weeks'].to_s.strip.empty?
   h[:p_workflow]   = p['workflow']        unless p['workflow'].to_s.strip.empty?
   h[:p_branch]     = p['branch']          unless p['branch'].to_s.strip.empty?
   h[:p_repository] = p['repository']      unless p['repository'].to_s.strip.empty?

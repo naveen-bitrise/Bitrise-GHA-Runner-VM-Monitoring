@@ -116,14 +116,13 @@ end $$;
 
 -- builds_stats: p90, p50, count, total for the filtered set
 create or replace function builds_stats(
-  p_weeks      int     default 12,
   p_workflow   text    default null,
   p_branch     text    default null,
   p_repository text    default null,
   p_runner_os  text    default null,
   p_cpu_count  int     default null,
-  p_from       date    default null,
-  p_to         date    default null
+  p_from       text    default null,
+  p_to         text    default null
 )
 returns json
 language sql security definer as $$
@@ -140,21 +139,20 @@ language sql security definer as $$
     and (p_repository is null or repository   = p_repository)
     and (p_runner_os  is null or runner_os    = p_runner_os)
     and (p_cpu_count  is null or cpu_count    = p_cpu_count)
-    and completed_at >= coalesce(p_from::timestamptz, (current_date - (p_weeks * 7))::timestamptz)
-    and completed_at <  coalesce((p_to + 1)::timestamptz, now() + interval '1 second')
+    and (p_from is null or completed_at >= p_from::timestamptz)
+    and (p_to   is null or completed_at <= p_to::timestamptz)
 $$;
 
 -- builds_trend: weekly buckets for a single builds metric
 create or replace function builds_trend(
-  p_weeks      int     default 12,
   p_metric     text    default 'p90',
   p_workflow   text    default null,
   p_branch     text    default null,
   p_repository text    default null,
   p_runner_os  text    default null,
   p_cpu_count  int     default null,
-  p_from       date    default null,
-  p_to         date    default null
+  p_from       text    default null,
+  p_to         text    default null
 )
 returns table(week date, value numeric)
 language sql security definer as $$
@@ -173,15 +171,14 @@ language sql security definer as $$
     and (p_repository is null or repository   = p_repository)
     and (p_runner_os  is null or runner_os    = p_runner_os)
     and (p_cpu_count  is null or cpu_count    = p_cpu_count)
-    and completed_at >= coalesce(p_from::timestamptz, (current_date - (p_weeks * 7))::timestamptz)
-    and completed_at <  coalesce((p_to + 1)::timestamptz, now() + interval '1 second')
+    and (p_from is null or completed_at >= p_from::timestamptz)
+    and (p_to   is null or completed_at <= p_to::timestamptz)
   group by 1
   order by 1
 $$;
 
 -- builds_breakdown: weekly buckets per dimension value
 create or replace function builds_breakdown(
-  p_weeks      int     default 12,
   p_metric     text    default 'p90',
   p_dimension  text    default 'workflow',
   p_workflow   text    default null,
@@ -189,8 +186,8 @@ create or replace function builds_breakdown(
   p_repository text    default null,
   p_runner_os  text    default null,
   p_cpu_count  int     default null,
-  p_from       date    default null,
-  p_to         date    default null
+  p_from       text    default null,
+  p_to         text    default null
 )
 returns table(week date, dim text, value numeric)
 language sql security definer as $$
@@ -216,8 +213,8 @@ language sql security definer as $$
     and (p_dimension = 'repository' or p_repository is null or repository   = p_repository)
     and (p_dimension = 'runner_os'  or p_runner_os  is null or runner_os    = p_runner_os)
     and (p_dimension = 'cpu_count'  or p_cpu_count  is null or cpu_count    = p_cpu_count)
-    and completed_at >= coalesce(p_from::timestamptz, (current_date - (p_weeks * 7))::timestamptz)
-    and completed_at <  coalesce((p_to + 1)::timestamptz, now() + interval '1 second')
+    and (p_from is null or completed_at >= p_from::timestamptz)
+    and (p_to   is null or completed_at <= p_to::timestamptz)
   group by 1, 2
   order by 1, 2
 $$;

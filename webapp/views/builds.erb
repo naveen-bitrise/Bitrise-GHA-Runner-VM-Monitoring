@@ -273,6 +273,17 @@
     '#dc2626','#0891b2','#7c3aed','#65a30d'
   ];
 
+  // Format a Date as a local-timezone ISO string (YYYY-MM-DDTHH:MM:SS±HH:MM)
+  function localISO(d) {
+    const pad  = n => String(n).padStart(2, '0');
+    const off  = d.getTimezoneOffset();
+    const sign = off <= 0 ? '+' : '-';
+    const ah   = pad(Math.floor(Math.abs(off) / 60));
+    const am   = pad(Math.abs(off) % 60);
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}` +
+           `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${sign}${ah}:${am}`;
+  }
+
   // --- range hint ---
   function updateRangeHint() {
     const range = document.getElementById('timeRange').value;
@@ -290,14 +301,25 @@
   function getTimeParams() {
     const range = document.getElementById('timeRange').value;
     if (range === 'custom') {
-      const from = document.getElementById('fromDate').value;
-      const to   = document.getElementById('toDate').value;
+      const fromVal = document.getElementById('fromDate').value;
+      const toVal   = document.getElementById('toDate').value;
       const p = {};
-      if (from) p.from = from;
-      if (to)   p.to   = to;
+      if (fromVal) {
+        const [y, m, d] = fromVal.split('-').map(Number);
+        p.from = localISO(new Date(y, m - 1, d, 0, 0, 0));
+      }
+      if (toVal) {
+        const [y, m, d] = toVal.split('-').map(Number);
+        p.to = localISO(new Date(y, m - 1, d, 23, 59, 59));
+      }
       return p;
     }
-    return { weeks: range };
+    const weeks = parseInt(range, 10);
+    const to    = new Date();
+    const from  = new Date();
+    from.setDate(from.getDate() - weeks * 7);
+    from.setHours(0, 0, 0, 0);
+    return { from: localISO(from), to: localISO(to) };
   }
 
   function getFilterParams() {
