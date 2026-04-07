@@ -265,7 +265,12 @@
     const info = document.getElementById('jobInfo');
     if (data.job_start) {
       const dur = data.duration_seconds ? ` · ${Math.round(data.duration_seconds / 60)} min` : '';
-      info.textContent = `Job started: ${data.job_start}${dur}`;
+      const fmt = new Date(data.job_start).toLocaleString(undefined, {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        timeZoneName: 'short'
+      });
+      info.textContent = `Job started: ${fmt}${dur}`;
       info.style.display = 'block';
     }
 
