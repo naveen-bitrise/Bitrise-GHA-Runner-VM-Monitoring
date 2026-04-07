@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Builds — GHA Runner Monitoring</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='2' y='20' width='7' height='10' rx='1' fill='%237c3aed'/><rect x='12' y='12' width='7' height='18' rx='1' fill='%237c3aed'/><rect x='22' y='6' width='7' height='24' rx='1' fill='%237c3aed'/></svg>">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -244,6 +245,7 @@
   let breakdownChart = null;
   let activeMetric   = 'p90';
   let activeDim      = 'workflow';
+  let osCpuMap       = {};
 
   const METRIC_LABELS = {
     p90:             'Top build time (p90)',
@@ -346,10 +348,17 @@
     });
   }
 
+  function updateCpuOptions() {
+    const os = document.getElementById('fRunnerOs').value;
+    const counts = os && osCpuMap[os] ? osCpuMap[os] : Object.values(osCpuMap).flat().filter((v,i,a) => a.indexOf(v) === i).sort((a,b) => a-b);
+    populateSelect('fCpuCount', counts);
+  }
+
   async function loadFilters() {
     try {
       const res  = await fetch('/api/builds/filters');
       const data = await res.json();
+      osCpuMap = data.os_cpu_map || {};
       populateSelect('fWorkflow',  data.workflows);
       populateSelect('fBranch',    data.branches);
       populateSelect('fRunnerOs',  data.runner_os_values);
@@ -513,6 +522,7 @@
   document.getElementById('fRunnerOs').addEventListener('change', () => {
     const set = !!document.getElementById('fRunnerOs').value;
     document.getElementById('vcpuFilter').classList.toggle('visible', set);
+    updateCpuOptions();
     if (!set) document.getElementById('fCpuCount').value = '';
     renderBreakdownTabs();
     refresh();

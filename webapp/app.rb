@@ -51,12 +51,19 @@ get '/api/vm_filters' do
   rows = supabase_get('/rest/v1/builds', {
     select: 'workflow_name,branch,repository,runner_os,cpu_count'
   })
+  os_cpu_map = rows.each_with_object({}) do |r, h|
+    os = r['runner_os']; cpu = r['cpu_count']
+    next unless os && cpu
+    (h[os] ||= []) << cpu unless h[os]&.include?(cpu)
+  end
+  os_cpu_map.each_value(&:sort!)
   {
     workflows:        rows.map { |r| r['workflow_name'] }.compact.uniq.sort,
     branches:         rows.map { |r| r['branch'] }.compact.uniq.sort,
     repositories:     rows.map { |r| r['repository'] }.compact.uniq.sort,
     runner_os_values: rows.map { |r| r['runner_os'] }.compact.uniq.sort,
-    cpu_counts:       rows.map { |r| r['cpu_count'] }.compact.uniq.sort
+    cpu_counts:       rows.map { |r| r['cpu_count'] }.compact.uniq.sort,
+    os_cpu_map:       os_cpu_map
   }.to_json
 end
 
@@ -151,11 +158,18 @@ get '/api/builds/filters' do
   rows = supabase_get('/rest/v1/builds', {
     select: 'workflow_name,branch,runner_os,cpu_count'
   })
+  os_cpu_map = rows.each_with_object({}) do |r, h|
+    os = r['runner_os']; cpu = r['cpu_count']
+    next unless os && cpu
+    (h[os] ||= []) << cpu unless h[os]&.include?(cpu)
+  end
+  os_cpu_map.each_value(&:sort!)
   {
     workflows:        rows.map { |r| r['workflow_name'] }.compact.uniq.sort,
     branches:         rows.map { |r| r['branch'] }.compact.uniq.sort,
     runner_os_values: rows.map { |r| r['runner_os'] }.compact.uniq.sort,
-    cpu_counts:       rows.map { |r| r['cpu_count'] }.compact.uniq.sort
+    cpu_counts:       rows.map { |r| r['cpu_count'] }.compact.uniq.sort,
+    os_cpu_map:       os_cpu_map
   }.to_json
 end
 

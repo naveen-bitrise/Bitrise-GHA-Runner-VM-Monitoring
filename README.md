@@ -1,114 +1,65 @@
 # GitHub Actions Runner VM Monitoring
 
-Monitor CPU, memory, load, and swap on Bitrise-hosted GitHub Actions Mac runners. Metrics are automatically collected during each job, pushed to this repo, and visualised in a local Ruby web app.
+Monitor CPU, memory, load, and swap on Bitrise-hosted GitHub Actions runners. Metrics are collected during each job, stored in Supabase, and visualised in a web dashboard with two views:
+
+- **VM Metrics** — per-job time-series charts (CPU, memory, load average, swap)
+- **Builds Dashboard** — aggregated trends across all jobs (build duration, failure rate, queue time)
 
 ---
 
-## Quick Start
+## Metrics Tracked
 
-### 1. Fork this repo
+<table><tr>
+<td><img src="docs/Build Metrics.png" alt="Build Metrics" width="100%"></td>
+<td><img src="docs/VM Metrics.png" alt="VM Metrics" width="100%"></td>
+</tr></table>
 
-Fork `naveen-bitrise/Bitrise-GHA-Runner-VM-Monitoring` to your own GitHub account or org.
 
-### 2. Create a Fine-Grained PAT
+### Build Metrics
 
-Go to **GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**:
+Aggregated across all jobs and displayed on the Builds Dashboard (`/builds`). Sourced from two places:
 
-- **Repository access**: only this forked repo
-- **Permissions → Contents**: `Read and write`
+| Metric | Description | Source |
+|---|---|---|
+| **Build duration (p90)** | 90th-percentile job duration — the upper bound most jobs stay under | `builds` table, populated by runner hook |
+| **Build duration (p50)** | Median job duration — typical build time | `builds` table, populated by runner hook |
+| **Build count** | Number of jobs completed in the selected period | `builds` table, populated by runner hook |
+| **Total duration** | Total compute time consumed across all jobs | `builds` table, populated by runner hook |
+| **Failure rate** | Percentage of jobs that did not complete with `success` conclusion | `job_conclusions` table, populated by GitHub webhook |
+| **Queue time (p90)** | 90th-percentile wait from job queued to job started — indicates runner pool saturation | `job_conclusions` table, populated by GitHub webhook |
+| **Queue time (p50)** | Median wait from job queued to job started | `job_conclusions` table, populated by GitHub webhook |
 
-### 3. Add the warmup script to your Bitrise Runner Pool
+#### Breakdown
 
-Copy the contents of `warmup_runner.sh` and paste it into your Bitrise Runner Pool warmup script configuration.
+Each metric can be broken down by one of the following dimensions to identify which slice is driving a trend:
 
-### 4. Replace the repo URL and PAT placeholder
-
-**4a.** Replace the repo URL with your forked repo (currently set to `naveen-bitrise/Bitrise-GHA-Runner-VM-Monitoring`):
-```
-MONITORING_REPO="YOUR_ORG/YOUR_FORKED_REPO"
-```
-
-**4b.** Replace `METRICS_TOKEN_PLACEHOLDER` with the Fine-Grained PAT you created in step 2:
-```
-METRICS_TOKEN="github_pat_xxxx..."
-```
-
-### 5. Run a GHA job on the Bitrise runner
-
-Trigger any GitHub Actions workflow that runs on your Bitrise runner pool. When the job finishes, the runner hook automatically uploads the metrics CSV to the `metrics/` folder in this repo.
-
-### 6. Pull the latest metrics
-
-If you already have the repo cloned locally, pull main to get the new metrics file:
-
-```bash
-git pull origin main
-```
-
-If not, clone the repo first:
-
-```bash
-git clone https://github.com/YOUR_ORG/YOUR_REPO.git
-```
-
-### 7. Start the web app
-
-```bash
-cd webapp
-bash start.sh
-```
-
-`start.sh` will automatically install Ruby dependencies on first run.
-
-### 8. Open the dashboard
-
-Open [http://0.0.0.0:4567](http://0.0.0.0:4567) in your browser. Select a job from the dropdown to view its metrics.
-
-![Dashboard Example](dashboard-screenshot.png)
+| Dimension | Description |
+|---|---|
+| **Workflow** | The GitHub Actions workflow name |
+| **Branch** | The git branch the job ran on |
+| **Machine type** | Runner OS (macOS, Linux) |
+| **vCPU count** | Number of vCPUs on the runner (only available when a machine type is selected) |
 
 ---
 
-## Dashboard Charts
+### VM Metrics
 
-The dashboard shows four charts for the duration of the selected job. The x-axis on all charts shows elapsed time (MM:SS) from job start. The job start timestamp (GMT) is shown above the charts.
+Time-series samples collected every 5 seconds during a job and displayed on the VM Metrics page (`/`). Sourced from the `metrics` table, populated by the runner hook at job end.
 
-### CPU Total
+| Metric | Description | Source |
+|---|---|---|
+| **CPU user %** | CPU time spent running user-space processes (build steps, compilers, test runners) | `iostat` (macOS) / `/proc/stat` (Linux) |
+| **CPU system %** | CPU time spent in the kernel (I/O, system calls, process management) | `iostat` (macOS) / `/proc/stat` (Linux) |
+| **Memory used** | RAM actively in use by processes (GB) | `vm_stat` (macOS) / `/proc/meminfo` (Linux) |
+| **Memory reclaimable** | File cache and buffers — can be freed under memory pressure (GB) | `vm_stat` (macOS) / `/proc/meminfo` (Linux) |
+| **Memory free** | Completely unallocated RAM (GB) | `vm_stat` (macOS) / `/proc/meminfo` (Linux) |
+| **Load average (1m)** | Average number of processes waiting for CPU over the last 1 minute | `sysctl` (macOS) / `/proc/loadavg` (Linux) |
+| **Load average (5m)** | Same, smoothed over 5 minutes | `sysctl` (macOS) / `/proc/loadavg` (Linux) |
+| **Load average (15m)** | Same, smoothed over 15 minutes — long-term trend | `sysctl` (macOS) / `/proc/loadavg` (Linux) |
+| **Swap used** | Swap space currently in use — non-zero indicates memory pressure (GB) | `vm_stat` (macOS) / `/proc/meminfo` (Linux) |
+| **Swap free** | Remaining swap capacity (GB) | `vm_stat` (macOS) / `/proc/meminfo` (Linux) |
 
-Shows CPU usage as a percentage over time.
-
-- **user** — CPU time spent running user-space processes (your build steps, compilers, test runners etc.)
-- **system** — CPU time spent in the kernel (I/O, process management, system calls)
-
-High `user` spikes indicate compute-heavy build steps. High `system` may indicate heavy file I/O or process spawning.
-
-### Memory
-
-Stacked area chart showing how physical RAM is distributed across the job.
-
-- **used** — memory actively in use by processes
-- **used_but_can_be_reclaimed** — cached/reclaimable memory (file cache, buffers) — macOS will reclaim this if needed
-- **free** — completely unused memory
-
-The y-axis max reflects the total RAM on the runner. A growing `used` band with shrinking `free` indicates memory pressure.
-
-### Load Average
-
-Shows the system load average over three rolling windows.
-
-- **load1** — 1-minute load average (most responsive to sudden spikes)
-- **load5** — 5-minute load average
-- **load15** — 15-minute load average (smoothed long-term trend)
-
-Load average represents the number of processes waiting for CPU time. On a 14-core runner, values below 14 generally indicate the system is not CPU-saturated.
-
-### Swap
-
-Shows swap space usage in GB.
-
-- **used** — how much swap is currently in use
-- **free** — remaining swap capacity
-
-Swap usage indicates the system ran low on physical RAM and started paging to disk, which significantly slows builds. A flat line near 0 GB is ideal.
+Metrics are retained for **7 days** and then automatically deleted by a pg_cron job.
 
 ---
 
@@ -116,13 +67,13 @@ Swap usage indicates the system ran low on physical RAM and started paging to di
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  Bitrise VM Boot                                        │
+│  Bitrise Runner Warmup Script                           │
 │                                                         │
 │  warmup_runner.sh runs:                                 │
 │    1. Clones this repo                                  │
-│    2. Installs collect_metrics.sh + monitor_daemon.sh   │
-│    3. Writes daemon.env (repo + PAT credentials)        │
-│    4. Registers push_metrics_hook.sh as                 │
+│    2. Installs scripts to /usr/local/bin/gha-monitoring │
+│    3. Writes daemon.env (Supabase credentials)          │
+│    4. Registers supabase_hook.sh as                     │
 │       ACTIONS_RUNNER_HOOK_JOB_COMPLETED                 │
 │    5. Starts monitor_daemon.sh in background            │
 └───────────────────────┬─────────────────────────────────┘
@@ -134,7 +85,7 @@ Swap usage indicates the system ran low on physical RAM and started paging to di
 │  monitor_daemon.sh polls every 5s for Runner.Worker     │
 │    → detects job start                                  │
 │    → starts collect_metrics.sh                          │
-│    → collects CPU, memory, load, swap every 5s          │
+│    → samples CPU, memory, load, swap every 5s           │
 │    → writes to /tmp/gha-monitoring/monitoring-*.csv     │
 └───────────────────────┬─────────────────────────────────┘
                         │
@@ -142,74 +93,229 @@ Swap usage indicates the system ran low on physical RAM and started paging to di
 ┌─────────────────────────────────────────────────────────┐
 │  GHA Job Completes                                      │
 │                                                         │
-│  GHA runner invokes push_metrics_hook.sh:               │
-│    → finds latest CSV in /tmp/gha-monitoring/           │
-│    → clones this repo                                   │
-│    → copies CSV to metrics/<vm-name>/                   │
-│    → commits and pushes to main                         │
-│                                                         │
-│  VM is then destroyed                                   │
+│  GHA runner invokes supabase_hook.sh:                   │
+│    → send_metrics_to_supabase.sh   — uploads CSV rows   │
+│      to `metrics` table (CPU, memory, load, swap)       │
+│    → send_build_info_to_supabase.sh — uploads build     │
+│      metadata to `builds` table (workflow, branch,      │
+│      duration, OS, vCPU count)                          │
 └───────────────────────┬─────────────────────────────────┘
                         │
                         ▼
 ┌─────────────────────────────────────────────────────────┐
-│  Local Machine                                          │
+│  GitHub Webhook → Supabase Edge Function (gha-webhook)  │
 │                                                         │
-│  git pull → metrics/<vm-name>/monitoring-*.csv          │
+│  GitHub fires a workflow_job webhook on every           │
+│  job completion (configured at org or repo level).      │
+│  The Edge Function validates the HMAC signature and     │
+│  upserts a row into `job_conclusions`:                  │
+│    → conclusion (success / failure / cancelled)         │
+│    → queue time  — created_at to started_at             │
+│    → build duration — started_at to completed_at        │
+│    → runner labels — machine OS, arch, vCPU count       │
 │                                                         │
-│  cd webapp && bash start.sh                             │
-│    → Sinatra app reads metrics/ folder                  │
-│    → Serves 4 interactive charts at :4567               │
+│  This is what powers failure rate and queue time        │
+│  on the Builds Dashboard.                               │
+└───────────────────────┬─────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────┐
+│  Web Dashboard  (http://localhost:4567)                 │
+│                                                         │
+│  Sinatra app reads from Supabase via REST API           │
+│    /            → VM Metrics (per-job charts)           │
+│    /builds      → Builds Dashboard (trends + breakdown) │
 └─────────────────────────────────────────────────────────┘
 ```
 
-### Key Files
+---
+
+## Setup
+
+### 1. Create a Supabase project
+
+Go to [supabase.com](https://supabase.com) and create a new project. Note your **Project ID** from Settings → General.
+
+### 2. Run the database setup SQL
+
+In the Supabase dashboard, go to **SQL Editor** and run the contents of [`supabase/setup.sql`](supabase/setup.sql).
+
+This creates:
+- `metrics` table — time-series VM samples
+- `builds` table — per-job build metadata
+- `job_conclusions` table — job outcomes from GitHub webhook
+- Row Level Security policies (anon: insert only; service role: full access)
+- RPC functions for the Builds Dashboard aggregations
+- A pg_cron job that deletes metrics older than 7 days daily at 02:00 UTC
+
+### 3. Deploy the GitHub webhook Edge Function
+
+The Edge Function in [`supabase/functions/gha-webhook/index.ts`](supabase/functions/gha-webhook/index.ts) receives GitHub `workflow_job` webhook events and records job conclusions (queue time, failure rate) into Supabase.
+
+**Deploy via the Supabase dashboard:**
+
+1. Go to **Edge Functions** → **Deploy a new function**
+2. Name it `gha-webhook`
+3. Paste the contents of `supabase/functions/gha-webhook/index.ts`
+4. Deploy
+
+**Set environment variables** for the function (Edge Functions → `gha-webhook` → Secrets):
+
+| Variable | Value |
+|---|---|
+| `GITHUB_WEBHOOK_SECRET` | A secret string you choose (used to verify webhook signatures) |
+| `RUNNER_NAME_PREFIX` | Optional — only process jobs from runners with this name prefix (e.g. `bitrise-`) |
+
+**Disable JWT verification** for this function (it uses HMAC instead): Edge Functions → `gha-webhook` → Settings → uncheck "Verify JWT".
+
+### 4. Configure the GitHub webhook
+
+In your GitHub organisation (or repository): **Settings → Webhooks → Add webhook**
+
+| Field | Value |
+|---|---|
+| Payload URL | `https://<your-project-id>.supabase.co/functions/v1/gha-webhook` |
+| Content type | `application/json` |
+| Secret | The `GITHUB_WEBHOOK_SECRET` value from step 3 |
+| Events | Select **individual events** → tick **Workflow jobs** only |
+
+### 5. Fork this repo and configure the runner warmup script
+
+Fork this repo to your own GitHub org or account.
+
+Open `scripts/warmup_runner.sh` and replace the two placeholders:
+
+```bash
+SUPABASE_PROJECT_ID="SUPABASE_PROJECT_ID_PLACEHOLDER"       # Settings → General
+SUPABASE_PUBLISHABLE_KEY="SUPABASE_PUBLISHABLE_KEY_PLACEHOLDER"  # Settings → API → anon/publishable key
+```
+
+Also update the repo URL to point to your fork:
+
+```bash
+MONITORING_REPO="YOUR_ORG/YOUR_FORKED_REPO"
+```
+
+### 6. Add the warmup script to your Bitrise Runner Pool
+
+Copy the contents of `scripts/warmup_runner.sh` and paste it into your Bitrise Runner Pool warmup script configuration. The script will:
+- Clone this repo onto each VM at boot
+- Install the monitoring scripts
+- Start the background daemon
+- Register the post-job hook that uploads metrics to Supabase
+
+### 7. Start the web app
+
+Clone this repo and check out the `supabase` branch (no fork needed — the webapp only reads from Supabase):
+
+```bash
+git clone https://github.com/naveen-bitrise/Bitrise-GHA-Runner-VM-Monitoring.git
+cd Bitrise-GHA-Runner-VM-Monitoring
+git checkout supabase
+```
+
+The webapp requires `SUPABASE_PROJECT_ID` and `SUPABASE_SECRET_KEY` (service role key from Settings → API).
+
+```bash
+cd webapp
+SUPABASE_PROJECT_ID=your_project_id \
+SUPABASE_SECRET_KEY=your_service_role_key \
+bundle exec ruby app.rb
+```
+
+Or export them first:
+
+```bash
+export SUPABASE_PROJECT_ID=your_project_id
+export SUPABASE_SECRET_KEY=your_service_role_key
+cd webapp && bundle exec ruby app.rb
+```
+
+Open [http://localhost:4567](http://localhost:4567) in your browser.
+
+---
+
+## Key Files
 
 | File | Purpose |
 |---|---|
-| `warmup_runner.sh` | VM boot script — installs monitoring and starts the daemon |
-| `install_on_runner.sh` | Copies scripts to `/usr/local/bin/gha-monitoring/` |
-| `monitor_daemon.sh` | Background daemon — detects GHA jobs and starts/stops collection |
-| `collect_metrics.sh` | Samples CPU, memory, load, swap every 5s and writes CSV |
-| `push_metrics_hook.sh` | GHA post-job hook — pushes the CSV to this repo |
-| `metrics/<vm-name>/` | One subfolder per runner VM, one CSV per job |
-| `webapp/app.rb` | Sinatra web app — serves the dashboard |
-| `webapp/views/index.erb` | Dashboard UI with Chart.js graphs |
+| `scripts/warmup_runner.sh` | VM boot script — installs monitoring and starts the daemon |
+| `scripts/install_on_runner.sh` | Copies scripts to `/usr/local/bin/gha-monitoring/` |
+| `scripts/monitor_daemon.sh` | Background daemon — detects GHA jobs and starts/stops collection |
+| `scripts/collect_metrics.sh` | Samples CPU, memory, load, swap every 5s |
+| `scripts/supabase_hook.sh` | GHA post-job hook — calls the two upload scripts below |
+| `scripts/send_metrics_to_supabase.sh` | Uploads CSV rows to the `metrics` table |
+| `scripts/send_build_info_to_supabase.sh` | Uploads job metadata to the `builds` table |
+| `supabase/setup.sql` | Full database setup — tables, RLS, RPC functions, pg_cron |
+| `supabase/functions/gha-webhook/index.ts` | Edge Function — receives GitHub webhook, records job conclusions |
+| `webapp/app.rb` | Sinatra web app — serves the dashboard via Supabase REST API |
+| `webapp/views/index.erb` | VM Metrics dashboard (per-job time-series charts) |
+| `webapp/views/builds.erb` | Builds Dashboard (aggregated trends and breakdown) |
+
+---
+
+## Dashboard
+
+### VM Metrics (`/`)
+
+Shows four time-series charts for a selected job run. The x-axis shows elapsed time (MM:SS) from job start.
+
+- **CPU Total** — user and system CPU usage as a percentage over time
+- **Memory** — stacked: used / reclaimable cache / free (GB)
+- **Load Average** — 1, 5, and 15-minute load averages with a reference line at the vCPU count
+- **Swap** — swap used and free (GB)
+
+Use the filters to narrow by date, workflow, branch, repository, machine type, or vCPU count.
+
+### Builds Dashboard (`/builds`)
+
+Aggregates data across all jobs. Click a metric card to switch the trend chart.
+
+- **Top build time (p90)** — 90th-percentile build duration per week
+- **Typical build time (p50)** — median build duration per week
+- **Build count** — number of builds per week
+- **Total duration** — total compute time consumed per week
+- **Failure rate** — % of jobs that did not complete successfully
+- **Queue time (p90 / p50)** — time from job queued to job started
+
+The breakdown chart shows the selected metric sliced by workflow, branch, machine type, or vCPU count.
 
 ---
 
 ## Requirements
 
-### Runner (macOS)
+### Runner (macOS / Linux)
 - Bash 3.2+
-- Standard macOS utilities: `iostat`, `vm_stat`, `sysctl`, `pagesize`
-- Git (for pushing metrics)
+- `curl` (for Supabase uploads)
+- macOS: `iostat`, `vm_stat`, `sysctl`, `pagesize`
+- Linux: `/proc/stat`, `/proc/meminfo`
 
-### Local machine (webapp)
+### Web app
 - Ruby 2.7+
 - Bundler (`gem install bundler`)
+- Supabase project with `SUPABASE_PROJECT_ID` and `SUPABASE_SECRET_KEY` (service role key)
 
 ---
 
 ## Troubleshooting
 
-**Metrics not being pushed after job**
-Check that `ACTIONS_RUNNER_HOOK_JOB_COMPLETED` was written to `/Users/vagrant/actions-runner/.env`:
+**Metrics not appearing in the dashboard**
+Check the hook ran on the runner:
 ```bash
-cat /Users/vagrant/actions-runner/.env
+cat /tmp/gha-monitoring/daemon.log
 ```
 
-**Daemon not detecting jobs**
-Check daemon logs on the runner:
+**Hook not firing after job**
+Verify `ACTIONS_RUNNER_HOOK_JOB_COMPLETED` is set in the runner `.env`:
 ```bash
-tail -f /tmp/gha-monitoring/daemon.log
+cat ~/actions-runner/.env
 ```
 
-**Push fails with auth error**
-Verify `METRICS_TOKEN` in `/usr/local/bin/gha-monitoring/daemon.env` matches a valid PAT with `Contents: Read and write` on this repo.
+**Supabase upload errors**
+Check `SUPABASE_PROJECT_ID` and `SUPABASE_PUBLISHABLE_KEY` in `/usr/local/bin/gha-monitoring/daemon.env`.
 
-**Web app shows no files**
-Confirm you have pulled the latest main branch and that CSV files exist under `metrics/`:
-```bash
-ls metrics/
-```
+**Job conclusions not recording (failure rate / queue time empty)**
+Confirm the GitHub webhook is delivering events: GitHub → Settings → Webhooks → Recent Deliveries. Check that the Edge Function is deployed and JWT verification is disabled.
+
+**Web app fails to start**
+Ensure `SUPABASE_PROJECT_ID` and `SUPABASE_SECRET_KEY` are exported before running `app.rb`. The secret key is the **service role** key (not the anon/publishable key).
