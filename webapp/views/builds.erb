@@ -306,7 +306,7 @@
 
   function bucketForRange(fromDate, toDate) {
     const days = (toDate - fromDate) / (1000 * 60 * 60 * 24);
-    if (days <= 14)  return 'day';
+    if (days < 15)   return 'day';
     if (days <= 90)  return 'week';
     return 'month';
   }
