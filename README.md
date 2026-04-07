@@ -1,6 +1,6 @@
 # GitHub Actions Runner VM Monitoring
 
-Monitor CPU, memory, load, and swap on Bitrise-hosted GitHub Actions runners. Metrics are collected during each job, stored in Supabase, and visualised in a web dashboard with two views:
+Monitor build and VM metrics on Bitrise-hosted GitHub Actions runners. Metrics are collected during each job, stored in Supabase, and visualised in a web dashboard with two views:
 
 - **VM Metrics** — per-job time-series charts (CPU, memory, load average, swap)
 - **Builds Dashboard** — aggregated trends across all jobs (build duration, failure rate, queue time)
