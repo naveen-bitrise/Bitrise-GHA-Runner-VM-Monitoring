@@ -210,6 +210,14 @@
       <div class="label">Total duration</div>
       <div class="value" id="stat_total">—</div>
     </div>
+    <div class="metric-card" data-metric="failure_rate">
+      <div class="label">Failure rate</div>
+      <div class="value" id="stat_failure_rate">—</div>
+    </div>
+    <div class="metric-card" data-metric="queue_time_p90">
+      <div class="label">Queue time (p90)</div>
+      <div class="value" id="stat_queue_time">—</div>
+    </div>
   </div>
 
   <!-- Trend chart -->
@@ -234,10 +242,12 @@
   let activeDim      = 'workflow';
 
   const METRIC_LABELS = {
-    p90:            'P90 build time',
-    p50:            'P50 build time',
-    count:          'Build count',
-    total_duration: 'Total duration'
+    p90:             'Top build time (p90)',
+    p50:             'Typical build time (p50)',
+    count:           'Build count',
+    total_duration:  'Total duration',
+    failure_rate:    'Failure rate',
+    queue_time_p90:  'Queue time (p90)'
   };
 
   const DIM_LABELS = {
@@ -308,11 +318,13 @@
   function fmtMetric(value, metric) {
     if (value == null) return '—';
     if (metric === 'count') return Math.round(value).toLocaleString();
+    if (metric === 'failure_rate') return `${value}%`;
     return fmtSeconds(value);
   }
 
   function yAxisCallback(metric) {
     if (metric === 'count') return v => Number.isInteger(v) ? v : null;
+    if (metric === 'failure_rate') return v => `${v}%`;
     return v => fmtSeconds(v);
   }
 
@@ -375,10 +387,12 @@
     try {
       const res  = await fetch('/api/builds/stats?' + buildQuery());
       const data = await res.json();
-      document.getElementById('stat_p90').textContent   = fmtSeconds(data.p90_seconds);
-      document.getElementById('stat_p50').textContent   = fmtSeconds(data.p50_seconds);
-      document.getElementById('stat_count').textContent = data.count ?? '—';
-      document.getElementById('stat_total').textContent = fmtSeconds(data.total_duration_seconds);
+      document.getElementById('stat_p90').textContent          = fmtSeconds(data.p90_seconds);
+      document.getElementById('stat_p50').textContent          = fmtSeconds(data.p50_seconds);
+      document.getElementById('stat_count').textContent        = data.count ?? '—';
+      document.getElementById('stat_total').textContent        = fmtSeconds(data.total_duration_seconds);
+      document.getElementById('stat_failure_rate').textContent = data.failure_rate != null ? `${data.failure_rate}%` : '—';
+      document.getElementById('stat_queue_time').textContent   = fmtSeconds(data.queue_time_p90);
     } catch (e) { console.error('loadStats', e); }
   }
 

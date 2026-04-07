@@ -158,28 +158,41 @@ get '/api/builds/filters' do
   }.to_json
 end
 
+JOB_METRICS = %w[failure_rate queue_time_p90].freeze
+
 get '/api/builds/stats' do
   content_type :json
-  result = supabase_rpc('builds_stats', builds_rpc_params(params))
-  stats  = result.is_a?(Array) ? result.first : result
-  stats.to_json
+  rp          = builds_rpc_params(params)
+  build_stats = supabase_rpc('builds_stats', rp)
+  build_stats = build_stats.is_a?(Array) ? build_stats.first : build_stats
+
+  job_stats = begin
+    r = supabase_rpc('job_stats', rp)
+    r.is_a?(Array) ? r.first : r
+  rescue StandardError
+    {}
+  end
+
+  (build_stats || {}).merge(job_stats || {}).to_json
 end
 
 get '/api/builds/trend' do
   content_type :json
-  rpc_params = builds_rpc_params(params).merge(
-    p_metric: params['metric'] || 'p90'
-  )
-  supabase_rpc('builds_trend', rpc_params).to_json
+  metric     = params['metric'] || 'p90'
+  fn         = JOB_METRICS.include?(metric) ? 'job_trend' : 'builds_trend'
+  rpc_params = builds_rpc_params(params).merge(p_metric: metric)
+  supabase_rpc(fn, rpc_params).to_json
 end
 
 get '/api/builds/breakdown' do
   content_type :json
+  metric     = params['metric']    || 'p90'
+  fn         = JOB_METRICS.include?(metric) ? 'job_breakdown' : 'builds_breakdown'
   rpc_params = builds_rpc_params(params).merge(
-    p_metric:    params['metric']    || 'p90',
+    p_metric:    metric,
     p_dimension: params['dimension'] || 'workflow'
   )
-  rows   = supabase_rpc('builds_breakdown', rpc_params)
+  rows   = supabase_rpc(fn, rpc_params)
   result = {}
   rows.each do |r|
     dim = r['dim'] || 'unknown'
