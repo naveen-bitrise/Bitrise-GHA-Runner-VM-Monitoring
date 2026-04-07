@@ -216,7 +216,11 @@
     </div>
     <div class="metric-card" data-metric="queue_time_p90">
       <div class="label">Queue time (p90)</div>
-      <div class="value" id="stat_queue_time">—</div>
+      <div class="value" id="stat_queue_time_p90">—</div>
+    </div>
+    <div class="metric-card" data-metric="queue_time_p50">
+      <div class="label">Queue time (p50)</div>
+      <div class="value" id="stat_queue_time_p50">—</div>
     </div>
   </div>
 
@@ -247,7 +251,8 @@
     count:           'Build count',
     total_duration:  'Total duration',
     failure_rate:    'Failure rate',
-    queue_time_p90:  'Queue time (p90)'
+    queue_time_p90:  'Queue time (p90)',
+    queue_time_p50:  'Queue time (p50)'
   };
 
   const DIM_LABELS = {
@@ -391,8 +396,9 @@
       document.getElementById('stat_p50').textContent          = fmtSeconds(data.p50_seconds);
       document.getElementById('stat_count').textContent        = data.count ?? '—';
       document.getElementById('stat_total').textContent        = fmtSeconds(data.total_duration_seconds);
-      document.getElementById('stat_failure_rate').textContent = data.failure_rate != null ? `${data.failure_rate}%` : '—';
-      document.getElementById('stat_queue_time').textContent   = fmtSeconds(data.queue_time_p90);
+      document.getElementById('stat_failure_rate').textContent  = data.failure_rate != null ? `${data.failure_rate}%` : '—';
+      document.getElementById('stat_queue_time_p90').textContent = fmtSeconds(data.queue_time_p90);
+      document.getElementById('stat_queue_time_p50').textContent = fmtSeconds(data.queue_time_p50);
     } catch (e) { console.error('loadStats', e); }
   }
 

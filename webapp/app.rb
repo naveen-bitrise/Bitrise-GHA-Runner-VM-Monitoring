@@ -158,7 +158,7 @@ get '/api/builds/filters' do
   }.to_json
 end
 
-JOB_METRICS = %w[failure_rate queue_time_p90].freeze
+JOB_METRICS = %w[failure_rate queue_time_p90 queue_time_p50].freeze
 
 get '/api/builds/stats' do
   content_type :json
