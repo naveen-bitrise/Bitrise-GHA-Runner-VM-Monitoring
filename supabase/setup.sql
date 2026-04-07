@@ -122,7 +122,8 @@ create or replace function builds_stats(
   p_runner_os  text    default null,
   p_cpu_count  int     default null,
   p_from       text    default null,
-  p_to         text    default null
+  p_to         text    default null,
+  p_bucket     text    default 'week'
 )
 returns json
 language sql security definer as $$
