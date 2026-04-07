@@ -196,6 +196,11 @@
     const sel = document.getElementById('runSelect');
     sel.innerHTML = '<option value="">Loading…</option>';
     document.getElementById('runHint').style.display = 'none';
+    // Clear charts when filters change (no run selected yet)
+    Object.values(charts).forEach(c => c.destroy());
+    charts = {};
+    document.getElementById('chartsArea').innerHTML = '';
+    document.getElementById('jobInfo').style.display = 'none';
 
     try {
       const res  = await fetch('/api/vm_runs?' + filterParams());
