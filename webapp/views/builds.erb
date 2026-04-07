@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Builds — GHA Runner Monitoring</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      color: #333;
+    }
+
+    /* Nav */
+    .main-nav {
+      background: white;
+      border-bottom: 1px solid #e0e0e0;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      height: 48px;
+    }
+    .main-nav a {
+      text-decoration: none;
+      color: #666;
+      font-size: 14px;
+      font-weight: 500;
+      padding: 6px 12px;
+      border-radius: 4px;
+    }
+    .main-nav a:hover { background: #f0f0f0; color: #333; }
+    .main-nav a.active { color: #7c3aed; font-weight: 600; }
+
+    .page { padding: 24px; max-width: 1400px; margin: 0 auto; }
+
+    /* Header row */
+    .header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    h1 { font-size: 24px; font-weight: 700; }
+
+    .time-controls { display: flex; gap: 8px; align-items: center; }
+    .time-controls select,
+    .time-controls input[type="date"] {
+      padding: 7px 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 13px;
+      background: white;
+    }
+    #customRange { display: none; gap: 6px; align-items: center; }
+    #customRange.visible { display: flex; }
+    #customRange span { font-size: 13px; color: #888; }
+
+    /* Filter bar */
+    .filter-bar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-bottom: 20px;
+    }
+    .filter-bar label { font-size: 12px; font-weight: 600; color: #888; margin-right: 4px; }
+    .filter-bar select {
+      padding: 6px 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 13px;
+      background: white;
+    }
+    #vcpuFilter { display: none; align-items: center; }
+    #vcpuFilter.visible { display: flex; }
+
+    /* Metric cards */
+    .metric-cards {
+      display: flex;
+      gap: 0;
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+    .metric-card {
+      flex: 1;
+      padding: 14px 20px;
+      cursor: pointer;
+      border-right: 1px solid #e0e0e0;
+      transition: background 0.15s;
+    }
+    .metric-card:last-child { border-right: none; }
+    .metric-card:hover { background: #faf9ff; }
+    .metric-card.active {
+      border-bottom: 3px solid #7c3aed;
+      background: #faf9ff;
+    }
+    .metric-card .label { font-size: 12px; color: #888; margin-bottom: 4px; }
+    .metric-card .value { font-size: 20px; font-weight: 700; color: #111; }
+
+    /* Chart panels */
+    .chart-panel {
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .chart-panel .panel-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #444;
+      margin-bottom: 16px;
+    }
+    .chart-canvas { position: relative; height: 280px; }
+
+    /* Breakdown tabs */
+    .breakdown-tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid #e0e0e0;
+      margin-bottom: 16px;
+    }
+    .breakdown-tabs button {
+      background: none;
+      border: none;
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #888;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+    }
+    .breakdown-tabs button:hover { color: #333; }
+    .breakdown-tabs button.active { color: #7c3aed; border-bottom-color: #7c3aed; }
+
+    .loading { text-align: center; padding: 40px; color: #aaa; font-size: 14px; }
+    .error   { text-align: center; padding: 20px; color: #d32f2f; font-size: 13px; }
+  </style>
+</head>
+<body>
+
+<nav class="main-nav">
+  <a href="/">VM Metrics</a>
+  <a href="/builds" class="active">Builds</a>
+</nav>
+
+<div class="page">
+
+  <!-- Header + time range -->
+  <div class="header-row">
+    <h1>Builds</h1>
+    <div class="time-controls">
+      <select id="timeRange">
+        <option value="1">Last week</option>
+        <option value="4">Last 4 weeks</option>
+        <option value="12" selected>Last 12 weeks</option>
+        <option value="26">Last 6 months</option>
+        <option value="custom">Custom</option>
+      </select>
+      <div id="customRange">
+        <input type="date" id="fromDate">
+        <span>→</span>
+        <input type="date" id="toDate">
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filter-bar">
+    <label for="fWorkflow">Workflow</label>
+    <select id="fWorkflow"><option value="">All</option></select>
+
+    <label for="fBranch">Branch</label>
+    <select id="fBranch"><option value="">All</option></select>
+
+    <label for="fRunnerOs">Machine type</label>
+    <select id="fRunnerOs"><option value="">All</option></select>
+
+    <div id="vcpuFilter">
+      <label for="fCpuCount">vCPU count</label>
+      <select id="fCpuCount"><option value="">All</option></select>
+    </div>
+  </div>
+
+  <!-- Metric cards -->
+  <div class="metric-cards">
+    <div class="metric-card active" data-metric="p90">
+      <div class="label">Top build time (p90)</div>
+      <div class="value" id="stat_p90">—</div>
+    </div>
+    <div class="metric-card" data-metric="p50">
+      <div class="label">Typical build time (p50)</div>
+      <div class="value" id="stat_p50">—</div>
+    </div>
+    <div class="metric-card" data-metric="count">
+      <div class="label">Build count</div>
+      <div class="value" id="stat_count">—</div>
+    </div>
+    <div class="metric-card" data-metric="total_duration">
+      <div class="label">Total duration</div>
+      <div class="value" id="stat_total">—</div>
+    </div>
+  </div>
+
+  <!-- Trend chart -->
+  <div class="chart-panel">
+    <div class="panel-title" id="trendTitle">P90 build time — weekly</div>
+    <div class="chart-canvas"><canvas id="trendChart"></canvas></div>
+  </div>
+
+  <!-- Breakdown -->
+  <div class="chart-panel">
+    <div class="breakdown-tabs" id="breakdownTabs"></div>
+    <div class="panel-title" id="breakdownTitle">P90 build time per workflow — weekly</div>
+    <div class="chart-canvas"><canvas id="breakdownChart"></canvas></div>
+  </div>
+
+</div>
+
+<script>
+  let trendChart     = null;
+  let breakdownChart = null;
+  let activeMetric   = 'p90';
+  let activeDim      = 'workflow';
+
+  const METRIC_LABELS = {
+    p90:            'P90 build time',
+    p50:            'P50 build time',
+    count:          'Build count',
+    total_duration: 'Total duration'
+  };
+
+  const DIM_LABELS = {
+    workflow:  'workflow',
+    branch:    'branch',
+    runner_os: 'machine type',
+    cpu_count: 'vCPU count'
+  };
+
+  const COLORS = [
+    '#7c3aed','#059669','#d97706','#2563eb',
+    '#dc2626','#0891b2','#7c3aed','#65a30d'
+  ];
+
+  // --- time helpers ---
+  function getTimeParams() {
+    const range = document.getElementById('timeRange').value;
+    if (range === 'custom') {
+      const from = document.getElementById('fromDate').value;
+      const to   = document.getElementById('toDate').value;
+      const p = {};
+      if (from) p.from = from;
+      if (to)   p.to   = to;
+      return p;
+    }
+    return { weeks: range };
+  }
+
+  function getFilterParams() {
+    const p = {};
+    const v = id => document.getElementById(id).value;
+    if (v('fWorkflow'))  p.workflow  = v('fWorkflow');
+    if (v('fBranch'))    p.branch    = v('fBranch');
+    if (v('fRunnerOs'))  p.runner_os = v('fRunnerOs');
+    if (v('fCpuCount'))  p.cpu_count = v('fCpuCount');
+    return p;
+  }
+
+  function buildQuery(extra = {}) {
+    return new URLSearchParams({ ...getTimeParams(), ...getFilterParams(), ...extra }).toString();
+  }
+
+  // --- format helpers ---
+  function fmtSeconds(s) {
+    if (s == null) return '—';
+    s = Math.round(s);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    if (h > 0) return `${h}h ${m}m ${sec}s`;
+    if (m > 0) return `${m}m ${sec}s`;
+    return `${sec}s`;
+  }
+
+  function fmtMetric(value, metric) {
+    if (value == null) return '—';
+    if (metric === 'count') return Math.round(value).toLocaleString();
+    return fmtSeconds(value);
+  }
+
+  function yAxisCallback(metric) {
+    if (metric === 'count') return v => Number.isInteger(v) ? v : null;
+    return v => fmtSeconds(v);
+  }
+
+  // --- populate selects ---
+  function populateSelect(id, values) {
+    const sel = document.getElementById(id);
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">All</option>';
+    values.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v; opt.textContent = v;
+      if (String(v) === String(prev)) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  }
+
+  async function loadFilters() {
+    try {
+      const res  = await fetch('/api/builds/filters');
+      const data = await res.json();
+      populateSelect('fWorkflow',  data.workflows);
+      populateSelect('fBranch',    data.branches);
+      populateSelect('fRunnerOs',  data.runner_os_values);
+      populateSelect('fCpuCount',  data.cpu_counts);
+    } catch (e) { console.error('loadFilters', e); }
+    renderBreakdownTabs();
+  }
+
+  // --- breakdown tabs ---
+  function renderBreakdownTabs() {
+    const machineSet = !!document.getElementById('fRunnerOs').value;
+    const dims = [
+      { key: 'workflow',  label: 'Workflow',     show: !document.getElementById('fWorkflow').value },
+      { key: 'branch',    label: 'Branch',       show: !document.getElementById('fBranch').value },
+      { key: 'runner_os', label: 'Machine type', show: !document.getElementById('fRunnerOs').value },
+      { key: 'cpu_count', label: 'vCPU count',   show: machineSet && !document.getElementById('fCpuCount').value }
+    ].filter(d => d.show);
+
+    const bar = document.getElementById('breakdownTabs');
+    bar.innerHTML = '';
+    if (!dims.find(d => d.key === activeDim)) {
+      activeDim = dims[0]?.key || 'workflow';
+    }
+    dims.forEach(d => {
+      const btn = document.createElement('button');
+      btn.textContent = d.label;
+      if (d.key === activeDim) btn.classList.add('active');
+      btn.addEventListener('click', () => {
+        activeDim = d.key;
+        bar.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        loadBreakdown();
+      });
+      bar.appendChild(btn);
+    });
+  }
+
+  // --- stats ---
+  async function loadStats() {
+    try {
+      const res  = await fetch('/api/builds/stats?' + buildQuery());
+      const data = await res.json();
+      document.getElementById('stat_p90').textContent   = fmtSeconds(data.p90_seconds);
+      document.getElementById('stat_p50').textContent   = fmtSeconds(data.p50_seconds);
+      document.getElementById('stat_count').textContent = data.count ?? '—';
+      document.getElementById('stat_total').textContent = fmtSeconds(data.total_duration_seconds);
+    } catch (e) { console.error('loadStats', e); }
+  }
+
+  // --- trend chart ---
+  async function loadTrend() {
+    try {
+      const res  = await fetch('/api/builds/trend?' + buildQuery({ metric: activeMetric }));
+      const rows = await res.json();
+      const labels = rows.map(r => r.week);
+      const values = rows.map(r => r.value);
+
+      const title = `${METRIC_LABELS[activeMetric]} — weekly`;
+      document.getElementById('trendTitle').textContent = title;
+
+      if (trendChart) trendChart.destroy();
+      trendChart = new Chart(document.getElementById('trendChart'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: METRIC_LABELS[activeMetric],
+            data: values,
+            borderColor: '#059669',
+            backgroundColor: 'rgba(5,150,105,0.1)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 3
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          scales: {
+            y: { beginAtZero: true, ticks: { callback: yAxisCallback(activeMetric) } },
+            x: { ticks: { maxTicksLimit: 12 } }
+          },
+          plugins: { legend: { display: false } }
+        }
+      });
+    } catch (e) { console.error('loadTrend', e); }
+  }
+
+  // --- breakdown chart ---
+  async function loadBreakdown() {
+    try {
+      const res  = await fetch('/api/builds/breakdown?' + buildQuery({ metric: activeMetric, dimension: activeDim }));
+      const data = await res.json();
+
+      const allWeeks = [...new Set(
+        Object.values(data).flatMap(pts => pts.map(p => p.week))
+      )].sort();
+
+      const datasets = Object.entries(data).map(([dim, pts], i) => {
+        const byWeek = Object.fromEntries(pts.map(p => [p.week, p.value]));
+        return {
+          label: dim,
+          data: allWeeks.map(w => byWeek[w] ?? null),
+          borderColor: COLORS[i % COLORS.length],
+          backgroundColor: 'transparent',
+          spanGaps: false,
+          tension: 0.3,
+          pointRadius: 3
+        };
+      });
+
+      const dimLabel = DIM_LABELS[activeDim] || activeDim;
+      document.getElementById('breakdownTitle').textContent =
+        `${METRIC_LABELS[activeMetric]} per ${dimLabel} — weekly`;
+
+      if (breakdownChart) breakdownChart.destroy();
+      breakdownChart = new Chart(document.getElementById('breakdownChart'), {
+        type: 'line',
+        data: { labels: allWeeks, datasets },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          scales: {
+            y: { beginAtZero: true, ticks: { callback: yAxisCallback(activeMetric) } },
+            x: { ticks: { maxTicksLimit: 12 } }
+          },
+          plugins: { legend: { position: 'bottom' } }
+        }
+      });
+    } catch (e) { console.error('loadBreakdown', e); }
+  }
+
+  function refresh() {
+    return Promise.all([loadStats(), loadTrend(), loadBreakdown()]);
+  }
+
+  // --- event wiring ---
+
+  // Metric card clicks
+  document.querySelectorAll('.metric-card').forEach(card => {
+    card.addEventListener('click', () => {
+      document.querySelectorAll('.metric-card').forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+      activeMetric = card.dataset.metric;
+      loadTrend();
+      loadBreakdown();
+    });
+  });
+
+  // Time range
+  document.getElementById('timeRange').addEventListener('change', () => {
+    const custom = document.getElementById('timeRange').value === 'custom';
+    document.getElementById('customRange').classList.toggle('visible', custom);
+    if (!custom) refresh();
+  });
+  document.getElementById('fromDate').addEventListener('change', refresh);
+  document.getElementById('toDate').addEventListener('change', refresh);
+
+  // Filters
+  document.getElementById('fRunnerOs').addEventListener('change', () => {
+    const set = !!document.getElementById('fRunnerOs').value;
+    document.getElementById('vcpuFilter').classList.toggle('visible', set);
+    if (!set) document.getElementById('fCpuCount').value = '';
+    renderBreakdownTabs();
+    refresh();
+  });
+  ['fWorkflow','fBranch','fCpuCount'].forEach(id => {
+    document.getElementById(id).addEventListener('change', () => {
+      renderBreakdownTabs();
+      refresh();
+    });
+  });
+
+  // --- init ---
+  loadFilters().then(refresh);
+</script>
+</body>
+</html>

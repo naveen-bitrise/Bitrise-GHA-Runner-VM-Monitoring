@@ -35,9 +35,10 @@ end
 def supabase_rpc(fn, params = {})
   uri = URI("#{SUPABASE_URL}/rest/v1/rpc/#{fn}")
   req = Net::HTTP::Post.new(uri)
-  req['apikey']        = SUPABASE_SECRET_KEY
-  req['Authorization'] = "Bearer #{SUPABASE_SECRET_KEY}"
-  req['Content-Type']  = 'application/json'
+  req['apikey']          = SUPABASE_SECRET_KEY
+  req['Authorization']   = "Bearer #{SUPABASE_SECRET_KEY}"
+  req['Content-Type']    = 'application/json'
+  req['Accept-Encoding'] = 'identity'
   req.body = params.to_json
   res = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true, verify_mode: OpenSSL::SSL::VERIFY_NONE) { |http| http.request(req) }
   JSON.parse(res.body)
@@ -130,8 +131,70 @@ get '/api/metrics/:run_id' do
   }.to_json
 end
 
+# --- Builds Dashboard API ---
+
+def builds_rpc_params(p)
+  h = {}
+  h[:p_weeks]     = p['weeks'].to_i     unless p['weeks'].to_s.strip.empty?
+  h[:p_workflow]  = p['workflow']        unless p['workflow'].to_s.strip.empty?
+  h[:p_branch]    = p['branch']          unless p['branch'].to_s.strip.empty?
+  h[:p_runner_os] = p['runner_os']       unless p['runner_os'].to_s.strip.empty?
+  h[:p_cpu_count] = p['cpu_count'].to_i  unless p['cpu_count'].to_s.strip.empty?
+  h[:p_from]      = p['from']            unless p['from'].to_s.strip.empty?
+  h[:p_to]        = p['to']              unless p['to'].to_s.strip.empty?
+  h
+end
+
+get '/api/builds/filters' do
+  content_type :json
+  rows = supabase_get('/rest/v1/builds', {
+    select: 'workflow_name,branch,runner_os,cpu_count'
+  })
+  {
+    workflows:        rows.map { |r| r['workflow_name'] }.compact.uniq.sort,
+    branches:         rows.map { |r| r['branch'] }.compact.uniq.sort,
+    runner_os_values: rows.map { |r| r['runner_os'] }.compact.uniq.sort,
+    cpu_counts:       rows.map { |r| r['cpu_count'] }.compact.uniq.sort
+  }.to_json
+end
+
+get '/api/builds/stats' do
+  content_type :json
+  result = supabase_rpc('builds_stats', builds_rpc_params(params))
+  stats  = result.is_a?(Array) ? result.first : result
+  stats.to_json
+end
+
+get '/api/builds/trend' do
+  content_type :json
+  rpc_params = builds_rpc_params(params).merge(
+    p_metric: params['metric'] || 'p90'
+  )
+  supabase_rpc('builds_trend', rpc_params).to_json
+end
+
+get '/api/builds/breakdown' do
+  content_type :json
+  rpc_params = builds_rpc_params(params).merge(
+    p_metric:    params['metric']    || 'p90',
+    p_dimension: params['dimension'] || 'workflow'
+  )
+  rows   = supabase_rpc('builds_breakdown', rpc_params)
+  result = {}
+  rows.each do |r|
+    dim = r['dim'] || 'unknown'
+    result[dim] ||= []
+    result[dim] << { week: r['week'], value: r['value'] }
+  end
+  result.to_json
+end
+
 # --- Pages ---
 
 get '/' do
   erb :index
+end
+
+get '/builds' do
+  erb :builds
 end
