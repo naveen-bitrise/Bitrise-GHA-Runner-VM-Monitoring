@@ -229,7 +229,8 @@ create or replace function job_stats(
   p_runner_os text    default null,
   p_cpu_count integer default null,
   p_from      text    default null,
-  p_to        text    default null
+  p_to        text    default null,
+  p_bucket    text    default 'week'
 ) returns table (failure_rate numeric, queue_time_p90 numeric, queue_time_p50 numeric)
 language sql security definer as $$
   select
