@@ -58,6 +58,7 @@
     #customRange { display: none; gap: 6px; align-items: center; }
     #customRange.visible { display: flex; }
     #customRange span { font-size: 13px; color: #888; }
+    #rangeHint { font-size: 12px; color: #888; margin-left: 4px; }
 
     /* Filter bar */
     .filter-bar {
@@ -169,6 +170,7 @@
         <option value="26">Last 6 months</option>
         <option value="custom">Custom</option>
       </select>
+      <span id="rangeHint"></span>
       <div id="customRange">
         <input type="date" id="fromDate">
         <span>→</span>
@@ -253,6 +255,19 @@
     '#7c3aed','#059669','#d97706','#2563eb',
     '#dc2626','#0891b2','#7c3aed','#65a30d'
   ];
+
+  // --- range hint ---
+  function updateRangeHint() {
+    const range = document.getElementById('timeRange').value;
+    const hint  = document.getElementById('rangeHint');
+    if (range === 'custom') { hint.textContent = ''; return; }
+    const weeks = parseInt(range, 10);
+    const to    = new Date();
+    const from  = new Date();
+    from.setDate(from.getDate() - weeks * 7);
+    const fmt = d => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    hint.textContent = `${fmt(from)} → ${fmt(to)}`;
+  }
 
   // --- time helpers ---
   function getTimeParams() {
@@ -473,6 +488,7 @@
   document.getElementById('timeRange').addEventListener('change', () => {
     const custom = document.getElementById('timeRange').value === 'custom';
     document.getElementById('customRange').classList.toggle('visible', custom);
+    updateRangeHint();
     if (!custom) refresh();
   });
   document.getElementById('fromDate').addEventListener('change', refresh);
@@ -494,6 +510,7 @@
   });
 
   // --- init ---
+  updateRangeHint();
   loadFilters().then(refresh);
 </script>
 </body>
