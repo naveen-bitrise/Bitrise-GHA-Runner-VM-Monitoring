@@ -268,6 +268,8 @@ cd webapp && bundle exec ruby app.rb
 
 Open [http://localhost:4567](http://localhost:4567) in your browser.
 
+Optionally, you can host the app on a service such as [Render](https://render.com), [Fly.io](https://fly.io), or [Railway](https://railway.app) to make the dashboard accessible without running it locally.
+
 ---
 
 ## Key Files
