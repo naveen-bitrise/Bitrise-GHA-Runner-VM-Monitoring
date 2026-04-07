@@ -59,15 +59,19 @@ if [[ -z "${RUNNER_HOME:-}" ]]; then
 fi
 RUNNER_ENV="${RUNNER_HOME}/actions-runner/.env"
 
-mkdir -p "$(dirname $RUNNER_ENV)"
+mkdir -p "$(dirname "$RUNNER_ENV")"
 grep -v "ACTIONS_RUNNER_HOOK_JOB_COMPLETED" "$RUNNER_ENV" > /tmp/runner_env_tmp 2>/dev/null || true
 echo "ACTIONS_RUNNER_HOOK_JOB_COMPLETED=${HOOK_SCRIPT}" >> /tmp/runner_env_tmp
 cp /tmp/runner_env_tmp "$RUNNER_ENV"
 echo "Runner hook configured in: $RUNNER_ENV"
 
-# Start the daemon now (runs for the lifetime of this VM)
-nohup /usr/local/bin/gha-monitoring/monitor_daemon.sh >> /tmp/gha-monitoring/daemon.log 2>&1 &
-echo "Daemon started (PID $!)"
+# Start the daemon — skip nohup on Linux when systemd is already managing it
+if [[ "$(uname)" == "Darwin" ]] || ! systemctl is-active --quiet gha-monitor 2>/dev/null; then
+  nohup /usr/local/bin/gha-monitoring/monitor_daemon.sh >> /tmp/gha-monitoring/daemon.log 2>&1 &
+  echo "Daemon started (PID $!)"
+else
+  echo "Daemon already running via systemd"
+fi
 
 echo ""
 echo "GHA VM Monitoring installed and running."
