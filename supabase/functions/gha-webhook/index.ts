@@ -12,8 +12,23 @@ interface LabelInfo {
 const OS_LABELS   = ["macOS", "Linux", "Windows"];
 const ARCH_LABELS = ["arm64", "x64", "ARM64", "X64"];
 
-function parseLabels(labels: string[]): LabelInfo {
-  const machine_os   = labels.find((l) => OS_LABELS.includes(l))   ?? null;
+function parseLabels(labels: string[], runnerName?: string): LabelInfo {
+  // Case-insensitive label match, normalised to canonical case
+  const osFromLabel = labels.find((l) =>
+    OS_LABELS.some((o) => o.toLowerCase() === l.toLowerCase())
+  );
+  let machine_os: string | null = osFromLabel
+    ? OS_LABELS.find((o) => o.toLowerCase() === osFromLabel.toLowerCase())!
+    : null;
+
+  // Fall back to inferring OS from the runner name (e.g. vm-pool-g2-mac-m4pro-...)
+  if (!machine_os && runnerName) {
+    const n = runnerName.toLowerCase();
+    if      (n.includes("mac"))                       machine_os = "macOS";
+    else if (n.includes("linux") || n.includes("ubuntu")) machine_os = "Linux";
+    else if (n.includes("win"))                       machine_os = "Windows";
+  }
+
   const machine_arch = labels.find((l) => ARCH_LABELS.includes(l)) ?? null;
   const coreLabel    = labels.find((l) => /^\d+core$/.test(l));
   const cpu_count    = coreLabel ? parseInt(coreLabel) : null;
@@ -71,8 +86,9 @@ Deno.serve(async (req: Request) => {
     return new Response("ok", { status: 200 });
   }
 
-  const labels = Array.isArray(job.labels) ? job.labels as string[] : [];
-  const { machine_os, machine_arch, cpu_count, runner_type } = parseLabels(labels);
+  const labels      = Array.isArray(job.labels) ? job.labels as string[] : [];
+  const runnerName  = job.runner_name ? String(job.runner_name) : undefined;
+  const { machine_os, machine_arch, cpu_count, runner_type } = parseLabels(labels, runnerName);
 
   const wait_time_seconds = job.created_at && job.started_at
     ? diffSeconds(String(job.created_at), String(job.started_at)) : null;
