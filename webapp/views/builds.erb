@@ -161,7 +161,9 @@
     </nav>
     <div class="time-controls">
       <select id="timeRange">
+        <option value="this_week">This week</option>
         <option value="1">Last week</option>
+        <option value="2">Last 2 weeks</option>
         <option value="4">Last 4 weeks</option>
         <option value="12" selected>Last 12 weeks</option>
         <option value="26">Last 6 months</option>
@@ -284,16 +286,22 @@
            `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${sign}${ah}:${am}`;
   }
 
+  function thisWeekMonday() {
+    const d   = new Date();
+    const dow = d.getDay();
+    d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+
   // --- range hint ---
   function updateRangeHint() {
     const range = document.getElementById('timeRange').value;
     const hint  = document.getElementById('rangeHint');
     if (range === 'custom') { hint.textContent = ''; return; }
-    const weeks = parseInt(range, 10);
-    const to    = new Date();
-    const from  = new Date();
-    from.setDate(from.getDate() - weeks * 7);
-    const fmt = d => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    const fmt  = d => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    const to   = new Date();
+    const from = range === 'this_week' ? thisWeekMonday() : new Date(to.getFullYear(), to.getMonth(), to.getDate() - parseInt(range, 10) * 7, 0, 0, 0);
     hint.textContent = `${fmt(from)} → ${fmt(to)}`;
   }
 
@@ -326,11 +334,8 @@
       }
       return p;
     }
-    const weeks = parseInt(range, 10);
-    const to    = new Date();
-    const from  = new Date();
-    from.setDate(from.getDate() - weeks * 7);
-    from.setHours(0, 0, 0, 0);
+    const to   = new Date();
+    const from = range === 'this_week' ? thisWeekMonday() : new Date(to.getFullYear(), to.getMonth(), to.getDate() - parseInt(range, 10) * 7, 0, 0, 0);
     return { from: localISO(from), to: localISO(to), bucket: bucketForRange(from, to) };
   }
 
