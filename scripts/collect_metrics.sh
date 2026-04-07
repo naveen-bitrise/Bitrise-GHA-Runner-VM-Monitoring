@@ -95,9 +95,12 @@ while true; do
         # Load average — /proc/loadavg
         LOAD_AVG=$(awk '{print $1","$2","$3}' "${PROC_DIR}/loadavg")
 
-        # Sleep between stat reads (gives the CPU delta its measurement window)
+        # Sleep between stat reads: 1s for CPU delta (matches macOS iostat -w 1),
+        # then sleep the remainder to honour INTERVAL.
         if [[ -z "$PROC_STAT_AFTER" ]]; then
-            sleep "$INTERVAL"
+            sleep 1
+            remaining=$(( INTERVAL - 1 ))
+            [[ $remaining -gt 0 ]] && sleep "$remaining"
         fi
 
         if [[ -n "$PROC_STAT_AFTER" ]]; then
