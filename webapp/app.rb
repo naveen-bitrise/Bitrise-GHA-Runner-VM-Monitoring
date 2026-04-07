@@ -150,6 +150,7 @@ def builds_rpc_params(p)
   h[:p_cpu_count]  = p['cpu_count'].to_i  unless p['cpu_count'].to_s.strip.empty?
   h[:p_from]       = p['from']            unless p['from'].to_s.strip.empty?
   h[:p_to]         = p['to']              unless p['to'].to_s.strip.empty?
+  h[:p_bucket]     = p['bucket']          unless p['bucket'].to_s.strip.empty?
   h
 end
 

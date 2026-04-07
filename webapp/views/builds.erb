@@ -297,6 +297,13 @@
     hint.textContent = `${fmt(from)} → ${fmt(to)}`;
   }
 
+  function bucketForRange(fromDate, toDate) {
+    const days = (toDate - fromDate) / (1000 * 60 * 60 * 24);
+    if (days <= 14)  return 'day';
+    if (days <= 90)  return 'week';
+    return 'month';
+  }
+
   // --- time helpers ---
   function getTimeParams() {
     const range = document.getElementById('timeRange').value;
@@ -312,6 +319,11 @@
         const [y, m, d] = toVal.split('-').map(Number);
         p.to = localISO(new Date(y, m - 1, d, 23, 59, 59));
       }
+      if (fromVal && toVal) {
+        const [fy,fm,fd] = fromVal.split('-').map(Number);
+        const [ty,tm,td] = toVal.split('-').map(Number);
+        p.bucket = bucketForRange(new Date(fy,fm-1,fd), new Date(ty,tm-1,td));
+      }
       return p;
     }
     const weeks = parseInt(range, 10);
@@ -319,7 +331,7 @@
     const from  = new Date();
     from.setDate(from.getDate() - weeks * 7);
     from.setHours(0, 0, 0, 0);
-    return { from: localISO(from), to: localISO(to) };
+    return { from: localISO(from), to: localISO(to), bucket: bucketForRange(from, to) };
   }
 
   function getFilterParams() {

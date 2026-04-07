@@ -143,7 +143,7 @@ language sql security definer as $$
     and (p_to   is null or completed_at <= p_to::timestamptz)
 $$;
 
--- builds_trend: weekly buckets for a single builds metric
+-- builds_trend: bucketed time series for a single builds metric
 create or replace function builds_trend(
   p_metric     text    default 'p90',
   p_workflow   text    default null,
@@ -152,12 +152,13 @@ create or replace function builds_trend(
   p_runner_os  text    default null,
   p_cpu_count  int     default null,
   p_from       text    default null,
-  p_to         text    default null
+  p_to         text    default null,
+  p_bucket     text    default 'week'
 )
 returns table(week date, value numeric)
 language sql security definer as $$
   select
-    date_trunc('week', completed_at)::date as week,
+    date_trunc(p_bucket, completed_at)::date as week,
     case p_metric
       when 'p90'            then percentile_cont(0.9) within group (order by build_duration_seconds)
       when 'p50'            then percentile_cont(0.5) within group (order by build_duration_seconds)
@@ -177,7 +178,7 @@ language sql security definer as $$
   order by 1
 $$;
 
--- builds_breakdown: weekly buckets per dimension value
+-- builds_breakdown: bucketed time series per dimension value
 create or replace function builds_breakdown(
   p_metric     text    default 'p90',
   p_dimension  text    default 'workflow',
@@ -187,12 +188,13 @@ create or replace function builds_breakdown(
   p_runner_os  text    default null,
   p_cpu_count  int     default null,
   p_from       text    default null,
-  p_to         text    default null
+  p_to         text    default null,
+  p_bucket     text    default 'week'
 )
 returns table(week date, dim text, value numeric)
 language sql security definer as $$
   select
-    date_trunc('week', completed_at)::date as week,
+    date_trunc(p_bucket, completed_at)::date as week,
     case p_dimension
       when 'workflow'   then workflow_name
       when 'branch'     then branch
