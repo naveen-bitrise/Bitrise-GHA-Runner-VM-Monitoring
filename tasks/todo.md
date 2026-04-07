@@ -46,6 +46,16 @@ Branch: `supabase` (create from `main`)
 
 ---
 
+## Stream E — Linux Runner Support
+
+- [ ] E1. Update `scripts/collect_metrics.sh` — add Linux code paths: CPU via `/proc/stat` (two-sample delta), memory via `/proc/meminfo` (`MemUsed = MemTotal − MemFree − Buffers − Cached`), load via `/proc/loadavg`, swap via `/proc/meminfo`; detect OS with `uname` and branch; keep identical CSV output schema
+- [ ] E2. Update `scripts/send_build_info_to_supabase.sh` — replace `sysctl -n hw.logicalcpu` with `nproc` on Linux (already has `uname` guard for `ts_to_epoch`; same pattern)
+- [ ] E3. Update `scripts/install_on_runner.sh` — add Linux startup: on Linux, skip launchd and instead write a systemd unit (`/etc/systemd/system/gha-monitor.service`) or fall back to `nohup ... &` if systemd is unavailable; detect with `uname`
+- [ ] E4. Update `scripts/warmup_runner.sh` — make runner `.env` path configurable: use `RUNNER_HOME` env var defaulting to `/Users/vagrant` on macOS / `/home/runner` on Linux; detect with `uname`
+- [ ] E-CHECKPOINT. Smoke test on a Linux runner: daemon starts, CSV is written, rows appear in Supabase `metrics` and `builds` tables; `runner_os` = `Linux` in builds row
+
+---
+
 ## Final wiring
 
 - [ ] F1. Add top nav to `webapp/views/index.erb` and `webapp/views/builds.erb` with links to `/` and `/builds`; active page link highlighted

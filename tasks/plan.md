@@ -578,6 +578,106 @@ curl -X POST https://<project-id>.supabase.co/functions/v1/gha-webhook \
 
 ---
 
+## Stream E — Linux Runner Support
+
+Stream E is **independent of all other streams** — it can proceed any time after Checkpoint A.
+The macOS scripts continue to work unchanged; Linux support is additive via `uname` detection.
+
+### Task E1 — `scripts/collect_metrics.sh` — Linux code paths
+
+**Goal:** Same CSV output on Linux runners without requiring macOS tools.
+
+**File to modify:** `scripts/collect_metrics.sh`
+
+**macOS-specific tools to replace on Linux:**
+
+| macOS | Linux equivalent |
+|---|---|
+| `iostat -c 2 -w 1` (CPU) | `/proc/stat` — read twice with 1s sleep, compute delta percentages |
+| `vm_stat` + `pagesize` (memory) | `/proc/meminfo` — `MemUsed = MemTotal − MemFree − Buffers − Cached`, `MemCached = Cached + SReclaimable` |
+| `sysctl -n vm.loadavg` (load) | `/proc/loadavg` — fields 1–3 |
+| `sysctl vm.swapusage` (swap) | `/proc/meminfo` — `SwapTotal`, `SwapFree` |
+
+**Approach:** wrap each metric block in `if [[ "$(uname)" == "Darwin" ]]; then ... else ... fi`.
+CSV header and output row format remain identical.
+
+**Acceptance criteria:**
+- Script produces the same 13-column CSV on Linux as on macOS.
+- On macOS, existing behaviour is unchanged.
+- CPU percentages sum to ≈100%; memory values are in MB; swap values are in MB.
+
+---
+
+### Task E2 — `scripts/send_build_info_to_supabase.sh` — Linux cpu_count
+
+**Goal:** Correct `cpu_count` on Linux runners.
+
+**File to modify:** `scripts/send_build_info_to_supabase.sh`
+
+**Change:** replace the bare `sysctl -n hw.logicalcpu` call (line ~61) with:
+```bash
+if [[ "$(uname)" == "Darwin" ]]; then
+  cpu_count=$(sysctl -n hw.logicalcpu 2>/dev/null) || cpu_count=0
+else
+  cpu_count=$(nproc 2>/dev/null) || cpu_count=0
+fi
+```
+
+**Acceptance criteria:**
+- On Linux, `cpu_count` in the `builds` row matches `nproc` output.
+- On macOS, unchanged.
+
+---
+
+### Task E3 — `scripts/install_on_runner.sh` — Linux startup
+
+**Goal:** Daemon starts automatically on Linux without launchd.
+
+**File to modify:** `scripts/install_on_runner.sh`
+
+**Change:** the launchd block (`if [ "$EUID" -eq 0 ]`) is macOS-only. Add an OS check:
+- On macOS: existing launchd path unchanged.
+- On Linux as root: write `/etc/systemd/system/gha-monitor.service` and run `systemctl enable --now gha-monitor`. If systemd is unavailable, fall back to adding a `nohup ... &` line to `/etc/rc.local`.
+- On Linux non-root: same hint as macOS non-root case.
+
+**Acceptance criteria:**
+- On Linux with systemd: `systemctl status gha-monitor` shows active after install.
+- On macOS: existing launchd behaviour unchanged.
+
+---
+
+### Task E4 — `scripts/warmup_runner.sh` — configurable runner home path
+
+**Goal:** Runner `.env` path works on Linux where the runner user is typically `runner`, not `vagrant`.
+
+**File to modify:** `scripts/warmup_runner.sh`
+
+**Change:** replace the hardcoded `/Users/vagrant/actions-runner/.env` with:
+```bash
+if [[ "$(uname)" == "Darwin" ]]; then
+  RUNNER_ENV_FILE="${RUNNER_HOME:-/Users/vagrant}/actions-runner/.env"
+else
+  RUNNER_ENV_FILE="${RUNNER_HOME:-/home/runner}/actions-runner/.env"
+fi
+```
+
+**Acceptance criteria:**
+- On Linux with default path: `.env` written to `/home/runner/actions-runner/.env`.
+- `RUNNER_HOME` env var overrides the default on both platforms.
+- On macOS: unchanged default of `/Users/vagrant`.
+
+---
+
+### Checkpoint E — Linux Runner Smoke Test
+
+1. Trigger a GHA job on a Linux self-hosted runner with the updated scripts.
+2. Verify CSV is written to `/tmp/gha-monitoring/monitoring-*.csv` with correct Linux metric values.
+3. Verify rows appear in Supabase `metrics` table with `run_id` and `vm_name` set.
+4. Verify row appears in Supabase `builds` table with `runner_os = Linux` and correct `cpu_count`.
+5. On macOS runner: re-run existing smoke test to confirm no regression.
+
+---
+
 ## Stream B
 
 ### Task B1 — Restore webapp skeleton
