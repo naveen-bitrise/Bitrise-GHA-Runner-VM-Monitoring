@@ -37,6 +37,7 @@ Each metric can be broken down by one of the following dimensions to identify wh
 |---|---|
 | **Workflow** | The GitHub Actions workflow name |
 | **Branch** | The git branch the job ran on |
+| **Repository** | The repository the job ran against |
 | **Machine type** | Runner OS (macOS, Linux) |
 | **vCPU count** | Number of vCPUs on the runner (only available when a machine type is selected) |
 
