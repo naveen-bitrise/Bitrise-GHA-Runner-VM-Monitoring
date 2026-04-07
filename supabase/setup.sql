@@ -253,7 +253,7 @@ language sql security definer as $$
     and completed_at <= coalesce(p_to::timestamptz, now())
 $$;
 
--- job_trend: weekly buckets for a single job_conclusions metric
+-- job_trend: bucketed time series for a single job_conclusions metric
 create or replace function job_trend(
   p_metric    text    default 'failure_rate',
   p_weeks     integer default 12,
@@ -262,12 +262,13 @@ create or replace function job_trend(
   p_runner_os text    default null,
   p_cpu_count integer default null,
   p_from      text    default null,
-  p_to        text    default null
+  p_to        text    default null,
+  p_bucket    text    default 'week'
 ) returns table (week text, value numeric)
 language sql security definer as $$
   with agg as (
     select
-      date_trunc('week', completed_at) as wk,
+      date_trunc(p_bucket, completed_at) as wk,
       round(
         100.0 * count(*) filter (where conclusion != 'success')
         / nullif(count(*), 0), 1
@@ -296,7 +297,7 @@ language sql security definer as $$
   from agg order by wk
 $$;
 
--- job_breakdown: weekly buckets per dimension for job_conclusions metrics
+-- job_breakdown: bucketed time series per dimension for job_conclusions metrics
 create or replace function job_breakdown(
   p_metric    text    default 'failure_rate',
   p_dimension text    default 'workflow',
@@ -306,7 +307,8 @@ create or replace function job_breakdown(
   p_runner_os text    default null,
   p_cpu_count integer default null,
   p_from      text    default null,
-  p_to        text    default null
+  p_to        text    default null,
+  p_bucket    text    default 'week'
 ) returns table (dim text, week text, value numeric)
 language sql security definer as $$
   with agg as (
@@ -317,7 +319,7 @@ language sql security definer as $$
         when 'runner_os' then machine_os
         when 'cpu_count' then cpu_count::text
       end as dim,
-      date_trunc('week', completed_at) as wk,
+      date_trunc(p_bucket, completed_at) as wk,
       round(
         100.0 * count(*) filter (where conclusion != 'success')
         / nullif(count(*), 0), 1

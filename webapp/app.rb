@@ -148,9 +148,9 @@ def builds_rpc_params(p)
   h[:p_repository] = p['repository']      unless p['repository'].to_s.strip.empty?
   h[:p_runner_os]  = p['runner_os']       unless p['runner_os'].to_s.strip.empty?
   h[:p_cpu_count]  = p['cpu_count'].to_i  unless p['cpu_count'].to_s.strip.empty?
-  h[:p_from]       = p['from']            unless p['from'].to_s.strip.empty?
-  h[:p_to]         = p['to']              unless p['to'].to_s.strip.empty?
-  h[:p_bucket]     = p['bucket']          unless p['bucket'].to_s.strip.empty?
+  h[:p_from]   = p['from']   unless p['from'].to_s.strip.empty?
+  h[:p_to]     = p['to']     unless p['to'].to_s.strip.empty?
+  h[:p_bucket] = p['bucket'] unless p['bucket'].to_s.strip.empty?
   h
 end
 
@@ -198,6 +198,7 @@ get '/api/builds/trend' do
   metric     = params['metric'] || 'p90'
   fn         = JOB_METRICS.include?(metric) ? 'job_trend' : 'builds_trend'
   rpc_params = builds_rpc_params(params).merge(p_metric: metric)
+  rpc_params[:p_bucket] = params['bucket'] unless JOB_METRICS.include?(metric) || params['bucket'].to_s.strip.empty?
   supabase_rpc(fn, rpc_params).to_json
 end
 
@@ -209,6 +210,7 @@ get '/api/builds/breakdown' do
     p_metric:    metric,
     p_dimension: params['dimension'] || 'workflow'
   )
+  rpc_params[:p_bucket] = params['bucket'] unless JOB_METRICS.include?(metric) || params['bucket'].to_s.strip.empty?
   rows   = supabase_rpc(fn, rpc_params)
   result = {}
   rows.each do |r|
