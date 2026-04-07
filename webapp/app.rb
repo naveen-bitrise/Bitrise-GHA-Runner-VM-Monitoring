@@ -143,20 +143,21 @@ end
 
 def builds_rpc_params(p)
   h = {}
-  h[:p_weeks]     = p['weeks'].to_i     unless p['weeks'].to_s.strip.empty?
-  h[:p_workflow]  = p['workflow']        unless p['workflow'].to_s.strip.empty?
-  h[:p_branch]    = p['branch']          unless p['branch'].to_s.strip.empty?
-  h[:p_runner_os] = p['runner_os']       unless p['runner_os'].to_s.strip.empty?
-  h[:p_cpu_count] = p['cpu_count'].to_i  unless p['cpu_count'].to_s.strip.empty?
-  h[:p_from]      = p['from']            unless p['from'].to_s.strip.empty?
-  h[:p_to]        = p['to']              unless p['to'].to_s.strip.empty?
+  h[:p_weeks]      = p['weeks'].to_i     unless p['weeks'].to_s.strip.empty?
+  h[:p_workflow]   = p['workflow']        unless p['workflow'].to_s.strip.empty?
+  h[:p_branch]     = p['branch']          unless p['branch'].to_s.strip.empty?
+  h[:p_repository] = p['repository']      unless p['repository'].to_s.strip.empty?
+  h[:p_runner_os]  = p['runner_os']       unless p['runner_os'].to_s.strip.empty?
+  h[:p_cpu_count]  = p['cpu_count'].to_i  unless p['cpu_count'].to_s.strip.empty?
+  h[:p_from]       = p['from']            unless p['from'].to_s.strip.empty?
+  h[:p_to]         = p['to']              unless p['to'].to_s.strip.empty?
   h
 end
 
 get '/api/builds/filters' do
   content_type :json
   rows = supabase_get('/rest/v1/builds', {
-    select: 'workflow_name,branch,runner_os,cpu_count'
+    select: 'workflow_name,branch,repository,runner_os,cpu_count'
   })
   os_cpu_map = rows.each_with_object({}) do |r, h|
     os = r['runner_os']; cpu = r['cpu_count']
@@ -167,6 +168,7 @@ get '/api/builds/filters' do
   {
     workflows:        rows.map { |r| r['workflow_name'] }.compact.uniq.sort,
     branches:         rows.map { |r| r['branch'] }.compact.uniq.sort,
+    repositories:     rows.map { |r| r['repository'] }.compact.uniq.sort,
     runner_os_values: rows.map { |r| r['runner_os'] }.compact.uniq.sort,
     cpu_counts:       rows.map { |r| r['cpu_count'] }.compact.uniq.sort,
     os_cpu_map:       os_cpu_map
