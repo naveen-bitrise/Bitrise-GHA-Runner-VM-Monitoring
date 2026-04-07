@@ -63,7 +63,7 @@ end
 get '/api/vm_runs' do
   content_type :json
   pairs = [
-    ['select', 'run_id,vm_name,workflow_name,branch,started_at,build_duration_seconds'],
+    ['select', 'run_id,vm_name,workflow_name,repository,branch,started_at,build_duration_seconds'],
     ['order',  'started_at.desc'],
     ['limit',  '10']
   ]

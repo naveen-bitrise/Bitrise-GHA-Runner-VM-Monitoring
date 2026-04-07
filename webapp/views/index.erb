@@ -221,7 +221,10 @@
           hour: '2-digit', minute: '2-digit',
           timeZoneName: 'short'
         }) : '';
-        opt.textContent = `${r.vm_name} — ${r.workflow_name || r.run_id} — ${ts}${dur}`;
+        const repo   = r.repository ? r.repository.replace(/^[^/]+\//, '') : '';
+        const branch = r.branch     ? ` [${r.branch}]` : '';
+        const wf     = r.workflow_name || r.run_id;
+        opt.textContent = `${r.vm_name} — ${wf}${repo ? ' · ' + repo : ''}${branch} — ${ts}${dur}`;
         sel.appendChild(opt);
       });
 
