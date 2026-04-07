@@ -311,6 +311,17 @@
     return 'month';
   }
 
+  function formatLabel(dateStr, bucket) {
+    // dateStr is YYYY-MM-DD from the server (UTC midnight of the bucket start)
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    if (bucket === 'month') return date.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+    if (bucket === 'week')  return 'Wk of ' + date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+
+  const BUCKET_SUFFIX = { day: 'daily', week: 'weekly', month: 'monthly' };
+
   // --- time helpers ---
   function getTimeParams() {
     const range = document.getElementById('timeRange').value;
@@ -459,12 +470,14 @@
   // --- trend chart ---
   async function loadTrend() {
     try {
-      const res  = await fetch('/api/builds/trend?' + buildQuery({ metric: activeMetric }));
-      const rows = await res.json();
-      const labels = rows.map(r => r.week);
+      const bucket = getTimeParams().bucket || 'week';
+      const res    = await fetch('/api/builds/trend?' + buildQuery({ metric: activeMetric }));
+      const rows   = await res.json();
+      const labels = rows.map(r => formatLabel(r.week, bucket));
       const values = rows.map(r => r.value);
 
-      document.getElementById('trendTitle').textContent = METRIC_LABELS[activeMetric];
+      document.getElementById('trendTitle').textContent =
+        `${METRIC_LABELS[activeMetric]} — ${BUCKET_SUFFIX[bucket] || bucket}`;
 
       if (trendChart) trendChart.destroy();
       trendChart = new Chart(document.getElementById('trendChart'), {
@@ -496,8 +509,9 @@
   // --- breakdown chart ---
   async function loadBreakdown() {
     try {
-      const res  = await fetch('/api/builds/breakdown?' + buildQuery({ metric: activeMetric, dimension: activeDim }));
-      const data = await res.json();
+      const bucket = getTimeParams().bucket || 'week';
+      const res    = await fetch('/api/builds/breakdown?' + buildQuery({ metric: activeMetric, dimension: activeDim }));
+      const data   = await res.json();
 
       const allWeeks = [...new Set(
         Object.values(data).flatMap(pts => pts.map(p => p.week))
@@ -518,12 +532,12 @@
 
       const dimLabel = DIM_LABELS[activeDim] || activeDim;
       document.getElementById('breakdownTitle').textContent =
-        `${METRIC_LABELS[activeMetric]} per ${dimLabel}`;
+        `${METRIC_LABELS[activeMetric]} per ${dimLabel} — ${BUCKET_SUFFIX[bucket] || bucket}`;
 
       if (breakdownChart) breakdownChart.destroy();
       breakdownChart = new Chart(document.getElementById('breakdownChart'), {
         type: 'line',
-        data: { labels: allWeeks, datasets },
+        data: { labels: allWeeks.map(w => formatLabel(w, bucket)), datasets },
         options: {
           responsive: true, maintainAspectRatio: false,
           scales: {
