@@ -692,25 +692,31 @@ values). Ruby does no aggregation — it just serialises the RPC response to the
 - Deduplicate in Ruby. Returns `{ workflows, branches, runner_os_values, cpu_counts }`.
 
 **`GET /api/builds/stats`**
-- `supabase_rpc('builds_stats', builds_rpc_params(params))`.
-- Returns the JSON object directly: `{ p90_seconds, p50_seconds, count, total_duration_seconds }`.
+- Calls `supabase_rpc('builds_stats', ...)` → returns `{ p90_seconds, p50_seconds, count, total_duration_seconds }`.
+- Also calls `supabase_rpc('job_stats', ...)` → returns `{ failure_rate, queue_time_p90, queue_time_p50 }`.
+- Merges both results. `job_stats` call wrapped in `rescue StandardError → {}` so the endpoint works before Stream D is live.
+- Returns merged: `{ p90_seconds, p50_seconds, count, total_duration_seconds, failure_rate, queue_time_p90, queue_time_p50 }`.
+
+**`JOB_METRICS = %w[failure_rate queue_time_p90 queue_time_p50]`** constant — used by trend + breakdown to route to the right RPC.
 
 **`GET /api/builds/trend`**
-- `supabase_rpc('builds_trend', builds_rpc_params(params).merge(p_metric: params[:metric] || 'p90'))`.
-- Returns `[{ week, value }, ...]` directly (already ordered by week ascending from SQL).
+- If `metric` in `JOB_METRICS` → `supabase_rpc('job_trend', ...)`.
+- Otherwise → `supabase_rpc('builds_trend', ...)`.
+- Returns `[{ week, value }, ...]` directly.
 
 **`GET /api/builds/breakdown`**
-- `supabase_rpc('builds_breakdown', builds_rpc_params(params).merge(p_metric: ..., p_dimension: params[:dimension] || 'workflow'))`.
-- RPC returns `[{ week, dim, value }, ...]`. Ruby reshapes to `{ "dim_value" => [{ week, value }, ...] }` for Chart.js multi-line format.
+- If `metric` in `JOB_METRICS` → `supabase_rpc('job_breakdown', ...)`.
+- Otherwise → `supabase_rpc('builds_breakdown', ...)`.
+- RPC returns `[{ week, dim, value }, ...]`. Ruby reshapes to `{ "dim_value" => [{ week, value }, ...] }`.
 
 **`get '/builds'`** → `erb :builds`.
 
 **Acceptance criteria:**
-- `/api/builds/stats` returns all 4 keys with non-null values.
+- `/api/builds/stats` returns all 7 keys; `failure_rate`/`queue_time_*` are `null` before Stream D (graceful).
 - `/api/builds/trend?metric=p90&weeks=12` returns weekly `{ week, value }` buckets ordered ascending.
-- `/api/builds/breakdown?metric=p90&dimension=workflow` returns one key per distinct workflow.
+- `/api/builds/trend?metric=failure_rate` calls `job_trend` RPC.
+- `/api/builds/breakdown?metric=queue_time_p90&dimension=workflow` calls `job_breakdown` RPC.
 - `from`/`to` params passed through to RPC; override `weeks` in the SQL function.
-- Dimension's own filter not applied in breakdown (handled in SQL — see Pre-work functions).
 - `service_role` key never in any response body.
 
 ---
@@ -724,7 +730,7 @@ values). Ruby does no aggregation — it just serialises the RPC response to the
 **HTML structure:**
 - Time range selector (top right): Last week / Last 4 weeks / Last 12 weeks (default) / Last 6 months / Custom. Custom reveals `from`/`to` date inputs.
 - Top filter bar: Workflow, Branch, Machine Type (always shown). vCPU Count (shown only when Machine Type is set).
-- Metric tab cards (4): p90 · p50 · Build count · Total duration. Each shows current aggregate value. Click to switch active metric.
+- Metric tab cards (7): p90 · p50 · Build count · Total duration · Failure rate · Queue time (p90) · Queue time (p50). Each shows current aggregate value. Click to switch active metric. Failure rate formatted as `X%`; queue times formatted as `Xm Ys`; tabs sourced from `job_conclusions` show `—` until Stream D is live.
 - Main trend chart: single line, weekly buckets, y-axis formatted per metric type (seconds as `Xm Ys`, count as integer).
 - Breakdown section:
   - Dimension tabs visibility rules:
@@ -738,7 +744,7 @@ values). Ruby does no aggregation — it just serialises the RPC response to the
 - `loadFilters()` → populate dropdowns + call `renderBreakdownTabs()`.
 - `getTimeParams()` → `{ weeks }` or `{ from, to }`.
 - `getFilterParams()` → non-blank values from all 4 dropdowns.
-- `loadStats()` → update 4 card spans. Format: p90/p50 as `Xm Ys`; total as `Xh Ym Zs`.
+- `loadStats()` → update 7 card spans. Format: p90/p50 as `Xm Ys`; total as `Xh Ym Zs`; failure_rate as `X%`; queue_time_p90/p50 as `Xm Ys`.
 - `loadTrend()` → fetch `/api/builds/trend`, render/update `trendChart`.
 - `loadBreakdown()` → fetch `/api/builds/breakdown`, render/update `breakdownChart`.
 - `renderBreakdownTabs()` → evaluate rules, rebuild tab strip, select first visible tab.
@@ -750,9 +756,10 @@ values). Ruby does no aggregation — it just serialises the RPC response to the
 - On load: `loadFilters()` then `refresh()`.
 
 **Acceptance criteria:**
-- `/builds` returns 200. 4 metric cards show non-zero values.
+- `/builds` returns 200. 4 `builds`-sourced metric cards show non-zero values; 3 `job_conclusions`-sourced cards show `—` until Stream D is live.
 - Trend + breakdown charts render on load.
 - Metric tab switch updates both charts.
+- Clicking Failure rate or Queue time cards → trend and breakdown use `job_trend`/`job_breakdown` RPCs; y-axis shows `%` for failure_rate, duration format for queue times.
 - Workflow filter hides Workflow breakdown tab.
 - Machine Type filter reveals vCPU dropdown and vCPU Count breakdown tab.
 - Custom time range reveals date inputs; entering dates re-fetches.
@@ -763,12 +770,14 @@ values). Ruby does no aggregation — it just serialises the RPC response to the
 ### Checkpoint C — Builds Dashboard End-to-End
 
 1. Open `http://localhost:4567/builds`.
-2. Default (Last 12 weeks, p90): all 4 cards populated, trend chart renders, Workflow breakdown tab active with multi-line chart.
+2. Default (Last 12 weeks, p90): all 4 `builds` cards populated, trend chart renders, Workflow breakdown tab active with multi-line chart.
 3. Click "Build count" → both charts switch to count.
-4. Set Workflow filter → Workflow tab disappears, next tab auto-selected.
-5. Set Machine Type → vCPU dropdown appears + vCPU breakdown tab appears.
-6. Custom range → date inputs appear, values update on date change.
-7. Network tab: no `service_role` key.
+4. Click "Failure rate" → trend/breakdown charts switch; y-axis shows `%`.
+5. Click "Queue time (p90)" → trend/breakdown charts switch; y-axis shows duration.
+6. Set Workflow filter → Workflow tab disappears, next tab auto-selected.
+7. Set Machine Type → vCPU dropdown appears + vCPU breakdown tab appears.
+8. Custom range → date inputs appear, values update on date change.
+9. Network tab: no `service_role` key.
 
 ---
 

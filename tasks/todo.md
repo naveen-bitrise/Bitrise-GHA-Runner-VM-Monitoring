@@ -40,9 +40,9 @@ Branch: `supabase` (create from `main`)
 
 ## Stream C — Webapp: Builds Dashboard Page
 
-- [ ] C1. Implement `/api/builds/filters`, `/api/builds/stats`, `/api/builds/trend`, `/api/builds/breakdown` in `webapp/app.rb`; add `get '/builds'` route (p50/p90 computed in Ruby from raw rows)
-- [ ] C2. Create `webapp/views/builds.erb` — metric tab cards (p90/p50/count/total, click to switch active metric driving both charts), trend line chart, breakdown multi-line chart, top filters (workflow/branch/machine type always; vCPU count if machine type set), time range selector (last week/4w/12w/6m/custom with date inputs), breakdown tab visibility rules
-- [ ] C-CHECKPOINT. Manual: open `/builds`; 4 cards show values; trend + breakdown render; metric tab switch updates both; workflow filter hides workflow breakdown tab; machine type filter reveals vCPU dropdown + breakdown tab; custom range works; no key in page source
+- [ ] C1. Implement `/api/builds/filters`, `/api/builds/stats`, `/api/builds/trend`, `/api/builds/breakdown` in `webapp/app.rb`; `builds_stats` + `job_stats` RPCs merged in stats endpoint (job_stats graceful fallback); `JOB_METRICS` constant routes failure_rate/queue_time_p90/queue_time_p50 to job_trend/job_breakdown RPCs
+- [ ] C2. Create `webapp/views/builds.erb` — 7 metric tab cards (p90/p50/count/total from builds; failure_rate/queue_time_p90/queue_time_p50 from job_conclusions — show — until Stream D live), trend line chart (% y-axis for failure_rate, duration for others), breakdown multi-line chart, top filters, time range selector, breakdown tab visibility rules
+- [ ] C-CHECKPOINT. Manual: open `/builds`; 4 builds cards show values; 3 job_conclusions cards show —; trend + breakdown render; failure_rate tab shows % axis; queue_time tab shows duration axis; metric tab switch updates both charts; filter + time range controls work; no key in page source
 
 ---
 

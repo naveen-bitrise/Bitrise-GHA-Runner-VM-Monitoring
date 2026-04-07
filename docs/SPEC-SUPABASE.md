@@ -426,8 +426,8 @@ Modelled on `Supabase-Build-Dashoard-Ref.png`.
 
 [Workflow ▼]  [Branch ▼]  [Machine Type ▼]  [vCPU Count ▼ — only if Machine Type is set]
 
-[● p90      ] [ p50      ] [ Build count ] [ Total duration ]
-[  2m 52s   ] [   33s    ] [     278     ] [  5h 55m 45s   ]
+[● p90      ] [ p50      ] [ Build count ] [ Total duration ] [ Failure rate ] [ Queue p90 ] [ Queue p50 ]
+[  2m 52s   ] [   33s    ] [     278     ] [  5h 55m 45s   ] [    1.2%      ] [   45s     ] [   12s     ]
       ↑ active tab — selected metric drives both charts below
 
 ──────────────────────────────────────────────────────────────
@@ -451,14 +451,20 @@ Each tab is a clickable card showing its current aggregate value for the selecte
 and time range. Clicking a tab switches both the main chart and the breakdown chart to
 display that metric. Tabs:
 
-| Tab | Aggregate shown on card | Chart Y-axis |
-|-----|------------------------|--------------|
-| p90 | `percentile(build_duration_seconds, 0.9)` formatted as `Xm Ys` | seconds |
-| p50 | `percentile(build_duration_seconds, 0.5)` formatted as `Xm Ys` | seconds |
-| Build count | `count(*)` | count |
-| Total duration | `sum(build_duration_seconds)` formatted as `Xh Ym Zs` | seconds |
+| Tab | Aggregate shown on card | Chart Y-axis | Source table |
+|-----|------------------------|--------------|--------------|
+| p90 | `percentile(build_duration_seconds, 0.9)` formatted as `Xm Ys` | seconds | `builds` |
+| p50 | `percentile(build_duration_seconds, 0.5)` formatted as `Xm Ys` | seconds | `builds` |
+| Build count | `count(*)` | count | `builds` |
+| Total duration | `sum(build_duration_seconds)` formatted as `Xh Ym Zs` | seconds | `builds` |
+| Failure rate | `round(100.0 * count(*) filter (where conclusion != 'success') / count(*), 1)` shown as `X%` | percent | `job_conclusions` |
+| Queue time (p90) | `percentile(wait_time_seconds, 0.9)` formatted as `Xm Ys` | seconds | `job_conclusions` |
+| Queue time (p50) | `percentile(wait_time_seconds, 0.5)` formatted as `Xm Ys` | seconds | `job_conclusions` |
 
 Default active tab: **p90**.
+
+Tabs sourced from `job_conclusions` show `—` until Stream D (Edge Function) is live and
+`job_conclusions` has data. The remaining tabs are unaffected.
 
 **Top filters:**
 
@@ -480,16 +486,22 @@ If all filters are clear, default is **Workflow**.
 **API endpoints:**
 
 - `GET /api/builds/stats?weeks=12&workflow=&branch=&runner_os=&cpu_count=`
-  Returns: `{ p90_seconds, p50_seconds, count, total_duration_seconds }`
-  Used to populate the four metric tab card values.
+  Returns: `{ p90_seconds, p50_seconds, count, total_duration_seconds, failure_rate, queue_time_p90, queue_time_p50 }`
+  Merges results from two Supabase RPCs: `builds_stats` (p90/p50/count/total) and
+  `job_stats` (failure_rate/queue_time_p90/queue_time_p50). `job_stats` result is merged
+  gracefully — missing or error returns `{}` so the endpoint works before Stream D is live.
+  Used to populate all seven metric tab card values.
 
 - `GET /api/builds/trend?weeks=12&metric=p90&workflow=&branch=&runner_os=&cpu_count=`
-  `metric`: `p90`, `p50`, `count`, `total_duration`.
+  `metric`: `p90`, `p50`, `count`, `total_duration`, `failure_rate`, `queue_time_p90`, `queue_time_p50`.
+  Metrics from `builds` table → RPC `builds_trend`.
+  Metrics from `job_conclusions` table (`failure_rate`, `queue_time_p90`, `queue_time_p50`) → RPC `job_trend`.
   Returns weekly buckets: `[{ week: "2026-01-04", value }, ...]`
   Used for the main trend line chart. Re-fetched on metric tab or filter change.
 
 - `GET /api/builds/breakdown?weeks=12&metric=p90&dimension=workflow&workflow=&branch=&runner_os=&cpu_count=`
   `dimension`: `workflow`, `branch`, `runner_os`, `cpu_count`.
+  Metrics from `builds` → RPC `builds_breakdown`. Metrics from `job_conclusions` → RPC `job_breakdown`.
   Returns one series per distinct dimension value:
   `{ "main": [{ week, value }, ...], "ci": [...] }`
   Used for the breakdown chart. Re-fetched on metric tab, breakdown tab, or filter change.
