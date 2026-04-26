@@ -224,14 +224,15 @@ $$;
 
 -- job_stats: failure_rate, queue_time_p90/p50 from job_conclusions
 create or replace function job_stats(
-  p_weeks     integer default 12,
-  p_workflow  text    default null,
-  p_branch    text    default null,
-  p_runner_os text    default null,
-  p_cpu_count integer default null,
-  p_from      text    default null,
-  p_to        text    default null,
-  p_bucket    text    default 'week'
+  p_weeks      integer default 12,
+  p_workflow   text    default null,
+  p_branch     text    default null,
+  p_repository text    default null,
+  p_runner_os  text    default null,
+  p_cpu_count  integer default null,
+  p_from       text    default null,
+  p_to         text    default null,
+  p_bucket     text    default 'week'
 ) returns table (failure_rate numeric, queue_time_p90 numeric, queue_time_p50 numeric)
 language sql security definer as $$
   select
@@ -244,10 +245,11 @@ language sql security definer as $$
     round(percentile_cont(0.5) within group (order by wait_time_seconds)::numeric, 0)
   from job_conclusions
   where
-    (p_workflow  is null or workflow_name = p_workflow)
-    and (p_branch    is null or branch       = p_branch)
-    and (p_runner_os is null or machine_os   = p_runner_os)
-    and (p_cpu_count is null or cpu_count    = p_cpu_count)
+    (p_workflow   is null or workflow_name = p_workflow)
+    and (p_branch     is null or branch       = p_branch)
+    and (p_repository is null or repository   = p_repository)
+    and (p_runner_os  is null or machine_os   = p_runner_os)
+    and (p_cpu_count  is null or cpu_count    = p_cpu_count)
     and completed_at >= coalesce(
           p_from::timestamptz,
           now() - make_interval(weeks => coalesce(p_weeks, 12))
@@ -257,15 +259,16 @@ $$;
 
 -- job_trend: bucketed time series for a single job_conclusions metric
 create or replace function job_trend(
-  p_metric    text    default 'failure_rate',
-  p_weeks     integer default 12,
-  p_workflow  text    default null,
-  p_branch    text    default null,
-  p_runner_os text    default null,
-  p_cpu_count integer default null,
-  p_from      text    default null,
-  p_to        text    default null,
-  p_bucket    text    default 'week'
+  p_metric     text    default 'failure_rate',
+  p_weeks      integer default 12,
+  p_workflow   text    default null,
+  p_branch     text    default null,
+  p_repository text    default null,
+  p_runner_os  text    default null,
+  p_cpu_count  integer default null,
+  p_from       text    default null,
+  p_to         text    default null,
+  p_bucket     text    default 'week'
 ) returns table (week text, value numeric)
 language sql security definer as $$
   with agg as (
@@ -279,10 +282,11 @@ language sql security definer as $$
       round(percentile_cont(0.5) within group (order by wait_time_seconds)::numeric, 0) as q_p50
     from job_conclusions
     where
-      (p_workflow  is null or workflow_name = p_workflow)
-      and (p_branch    is null or branch       = p_branch)
-      and (p_runner_os is null or machine_os   = p_runner_os)
-      and (p_cpu_count is null or cpu_count    = p_cpu_count)
+      (p_workflow   is null or workflow_name = p_workflow)
+      and (p_branch     is null or branch       = p_branch)
+      and (p_repository is null or repository   = p_repository)
+      and (p_runner_os  is null or machine_os   = p_runner_os)
+      and (p_cpu_count  is null or cpu_count    = p_cpu_count)
       and completed_at >= coalesce(
             p_from::timestamptz,
             now() - make_interval(weeks => coalesce(p_weeks, 12))
@@ -301,25 +305,27 @@ $$;
 
 -- job_breakdown: bucketed time series per dimension for job_conclusions metrics
 create or replace function job_breakdown(
-  p_metric    text    default 'failure_rate',
-  p_dimension text    default 'workflow',
-  p_weeks     integer default 12,
-  p_workflow  text    default null,
-  p_branch    text    default null,
-  p_runner_os text    default null,
-  p_cpu_count integer default null,
-  p_from      text    default null,
-  p_to        text    default null,
-  p_bucket    text    default 'week'
+  p_metric     text    default 'failure_rate',
+  p_dimension  text    default 'workflow',
+  p_weeks      integer default 12,
+  p_workflow   text    default null,
+  p_branch     text    default null,
+  p_repository text    default null,
+  p_runner_os  text    default null,
+  p_cpu_count  integer default null,
+  p_from       text    default null,
+  p_to         text    default null,
+  p_bucket     text    default 'week'
 ) returns table (dim text, week text, value numeric)
 language sql security definer as $$
   with agg as (
     select
       case p_dimension
-        when 'workflow'  then workflow_name
-        when 'branch'    then branch
-        when 'runner_os' then machine_os
-        when 'cpu_count' then cpu_count::text
+        when 'workflow'    then workflow_name
+        when 'branch'      then branch
+        when 'repository'  then repository
+        when 'runner_os'   then machine_os
+        when 'cpu_count'   then cpu_count::text
       end as dim,
       date_trunc(p_bucket, completed_at) as wk,
       round(
@@ -330,10 +336,11 @@ language sql security definer as $$
       round(percentile_cont(0.5) within group (order by wait_time_seconds)::numeric, 0) as q_p50
     from job_conclusions
     where
-      (p_dimension = 'workflow'  or p_workflow  is null or workflow_name = p_workflow)
-      and (p_dimension = 'branch'    or p_branch    is null or branch       = p_branch)
-      and (p_dimension = 'runner_os' or p_runner_os is null or machine_os   = p_runner_os)
-      and (p_dimension = 'cpu_count' or p_cpu_count is null or cpu_count    = p_cpu_count)
+      (p_dimension = 'workflow'   or p_workflow   is null or workflow_name = p_workflow)
+      and (p_dimension = 'branch'     or p_branch     is null or branch       = p_branch)
+      and (p_dimension = 'repository' or p_repository is null or repository   = p_repository)
+      and (p_dimension = 'runner_os'  or p_runner_os  is null or machine_os   = p_runner_os)
+      and (p_dimension = 'cpu_count'  or p_cpu_count  is null or cpu_count    = p_cpu_count)
       and completed_at >= coalesce(
             p_from::timestamptz,
             now() - make_interval(weeks => coalesce(p_weeks, 12))
