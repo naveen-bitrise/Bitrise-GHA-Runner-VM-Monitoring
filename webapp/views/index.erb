@@ -167,6 +167,13 @@
     <div class="run-hint" id="runHint" style="display:none"></div>
   </div>
 
+  <!-- VM scope: combined timeline (all samples) vs one runner (vm_name filter) -->
+  <div class="panel run-selector" id="vmSelectorPanel" style="display:none">
+    <label for="vmSelect">Metrics scope</label>
+    <select id="vmSelect"></select>
+    <div class="run-hint" id="vmScopeHint" style="display:none;margin-top:8px"></div>
+  </div>
+
   <!-- Job info -->
   <div class="panel job-info" id="jobInfo" style="display:none"></div>
 
@@ -304,7 +311,8 @@
   }
 
   async function loadMetrics() {
-    const runId = document.getElementById('runSelect').value;
+    const runId  = document.getElementById('runSelect').value;
+    const vmName = document.getElementById('vmSelect').value;
     if (!runId) {
       document.getElementById('chartsArea').innerHTML = '';
       document.getElementById('jobInfo').style.display = 'none';
@@ -312,13 +320,65 @@
     }
     document.getElementById('chartsArea').innerHTML = '<div class="loading">Loading…</div>';
     try {
-      const res  = await fetch(`/api/metrics/${runId}`);
+      const qs   = vmName ? `?vm_name=${encodeURIComponent(vmName)}` : '';
+      const res  = await fetch(`/api/metrics/${runId}${qs}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'API error');
       renderCharts(data);
     } catch (e) {
       document.getElementById('chartsArea').innerHTML = `<div class="error">Error: ${e.message}</div>`;
     }
+  }
+
+  function updateVmScopeHint() {
+    const hint = document.getElementById('vmScopeHint');
+    const vmSel = document.getElementById('vmSelect');
+    if (!hint || !vmSel || vmSel.options.length === 0) {
+      if (hint) hint.style.display = 'none';
+      return;
+    }
+    if (vmSel.value === '') {
+      hint.textContent =
+        'Combined: every runner’s samples in one series, sorted by time (same as no vm_name filter). ' +
+        'Useful for overall run shape; for a specific shard, pick a VM under “Single VM”.';
+    } else {
+      hint.textContent = 'Single VM: metrics for this runner only (matches vm_name in Supabase).';
+    }
+    hint.style.display = 'block';
+  }
+
+  async function onRunChange() {
+    const runId = document.getElementById('runSelect').value;
+    const panel = document.getElementById('vmSelectorPanel');
+    const vmSel = document.getElementById('vmSelect');
+    const hint = document.getElementById('vmScopeHint');
+    vmSel.innerHTML = '';
+    panel.style.display = 'none';
+    if (hint) hint.style.display = 'none';
+    if (!runId) { loadMetrics(); return; }
+    try {
+      const res = await fetch(`/api/vms/${runId}`);
+      const vms = await res.json();
+      if (Array.isArray(vms) && vms.length > 1) {
+        const all = document.createElement('option');
+        all.value = '';
+        all.textContent = `All VMs (${vms.length}) — one chart, all samples by time`;
+        vmSel.appendChild(all);
+        const og = document.createElement('optgroup');
+        og.label = 'Single VM';
+        vms.forEach(vm => {
+          const opt = document.createElement('option');
+          opt.value = vm; opt.textContent = vm;
+          og.appendChild(opt);
+        });
+        vmSel.appendChild(og);
+        // Default: combined timeline (legacy /api/metrics without vm_name). Pick a VM for per-shard view.
+        vmSel.value = '';
+        panel.style.display = 'block';
+        updateVmScopeHint();
+      }
+    } catch (e) { console.error('loadVms', e); }
+    loadMetrics();
   }
 
   function toRelativeLabels(timestamps) {
@@ -470,7 +530,11 @@
    'filter_repository','filter_cpu_count'].forEach(id => {
     document.getElementById(id).addEventListener('change', loadVmRuns);
   });
-  document.getElementById('runSelect').addEventListener('change', loadMetrics);
+  document.getElementById('runSelect').addEventListener('change', onRunChange);
+  document.getElementById('vmSelect').addEventListener('change', () => {
+    updateVmScopeHint();
+    loadMetrics();
+  });
 
   buildDateOptions();
   loadFilters().then(loadVmRuns);

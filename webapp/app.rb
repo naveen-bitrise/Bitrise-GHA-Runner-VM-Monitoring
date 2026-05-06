@@ -7,6 +7,12 @@ require 'uri'
 SUPABASE_URL        = "https://#{ENV.fetch('SUPABASE_PROJECT_ID')}.supabase.co"
 SUPABASE_SECRET_KEY = ENV.fetch('SUPABASE_SECRET_KEY')
 
+if SUPABASE_SECRET_KEY.start_with?('sb_publishable_')
+  warn '[gha-monitoring-webapp] SUPABASE_SECRET_KEY looks like a publishable (anon) key. ' \
+       'Use the secret key from Supabase → Project Settings → API (sb_secret_…). ' \
+       'Anon can INSERT from runners but cannot SELECT builds/metrics, so the UI stays empty.'
+end
+
 configure do
   set :bind, '0.0.0.0'
   set :port, 4567
@@ -90,15 +96,18 @@ end
 
 get '/api/metrics/:run_id' do
   content_type :json
-  run_id = params['run_id']
+  run_id  = params['run_id']
+  vm_name = params['vm_name']
 
-  metrics_rows = supabase_get('/rest/v1/metrics', {
+  metrics_query = {
     select: 'sampled_at,cpu_user,cpu_system,cpu_idle,cpu_nice,' \
             'memory_used_mb,memory_free_mb,memory_cached_mb,' \
             'load1,load5,load15,swap_used_mb,swap_free_mb',
     run_id: "eq.#{run_id}",
     order:  'sampled_at.asc'
-  })
+  }
+  metrics_query[:vm_name] = "eq.#{vm_name}" if vm_name && !vm_name.strip.empty?
+  metrics_rows = supabase_get('/rest/v1/metrics', metrics_query)
 
   build = supabase_get('/rest/v1/builds', {
     select: 'started_at,build_duration_seconds,cpu_count',
@@ -137,6 +146,29 @@ get '/api/metrics/:run_id' do
     duration_seconds: build['build_duration_seconds'].to_i,
     cpu_count:        build['cpu_count'].to_i
   }.to_json
+end
+
+get '/api/vms/:run_id' do
+  content_type :json
+  # Page through metrics to collect every distinct vm_name (avoids the
+  # default PostgREST 1000-row cap silently dropping VMs).
+  vms = []
+  offset = 0
+  loop do
+    pairs = [
+      ['select', 'vm_name'],
+      ['run_id', "eq.#{params['run_id']}"],
+      ['order',  'id.asc'],
+      ['limit',  '1000'],
+      ['offset', offset.to_s]
+    ]
+    chunk = JSON.parse(supabase_request('/rest/v1/metrics', pairs).body)
+    break if chunk.empty?
+    vms.concat(chunk.map { |r| r['vm_name'] })
+    break if chunk.length < 1000
+    offset += 1000
+  end
+  vms.compact.uniq.sort.to_json
 end
 
 # --- Builds Dashboard API ---
