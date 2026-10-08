@@ -189,19 +189,44 @@ render() {
             print "|---|---|---|---|---|"
             printf "| %s%% | %s%% | %s / %s GB | %s | %s GB |\n", r1(avgcpu), r1(pcpu), r1(pmu), r1(ram), r1(pl1), r1(psw)
             print ""
+            # Two collapsible sections, each a two-column table. Blank lines around
+            # the fenced blocks are required for GitHub to render Markdown in <td>.
+            print "<details open>"
+            print "<summary><b>CPU & memory</b> — CPU peak " r1(pcpu) "% · memory peak " r1(pmu) " / " r1(ram) " GB</summary>"
+            print ""
+            print "<table><tr><td width=\"50%\" valign=\"top\">"
+            print ""
             print "**CPU %** — 🔵 user + system · 🟠 system"
+            print ""
             mchart("CPU %", "%", 100, bcpu, "sys", "#2563eb, #f97316")
             print ""
-            print "**Memory (GB)** — stacked: 🔵 used · 🟢 used but reclaimable (cache) · ⚪ free"
+            print "</td><td width=\"50%\" valign=\"top\">"
+            print ""
+            print "**Memory (GB)** — 🔵 used · 🟢 reclaimable · ⚪ free"
+            print ""
             mstacked("Memory (GB)", "GB", memmax, "#9ca3af, #16a34a, #2563eb")
             print ""
+            print "</td></tr></table>"
+            print "</details>"
+            print ""
+            print "<details>"
+            print "<summary><b>Load & swap</b> — load peak " r1(pl1) " · swap peak " r1(psw) " GB" (psw > 0 ? " ⚠️" : "") "</summary>"
+            print ""
+            print "<table><tr><td width=\"50%\" valign=\"top\">"
+            print ""
             print "**Load average** — 🔵 1m · 🟣 5m"
+            print ""
             mchart("Load average", "load", loadmax, bl1, "load5", "#2563eb, #9333ea")
-            if (psw > 0) {
-                print ""
-                print "**Swap used (GB)** — non-zero means the VM ran out of RAM"
-                mchart("Swap used (GB)", "GB", ceilnice(psw), bsw, "", "#dc2626")
-            }
+            print ""
+            print "</td><td width=\"50%\" valign=\"top\">"
+            print ""
+            print "**Swap used (GB)** — non-zero means the VM ran out of RAM"
+            print ""
+            if (psw > 0) mchart("Swap used (GB)", "GB", ceilnice(psw), bsw, "", "#dc2626")
+            else         print "✅ No swap used during this job."
+            print ""
+            print "</td></tr></table>"
+            print "</details>"
             print ""
             print "<sub>Each point is the max of its time bucket (" nb " points from " n " samples) · monitoring " ver "</sub>"
         } else {
