@@ -10,10 +10,13 @@
 # workflow commands and environment files like any other step.
 #
 # Optional env (set in daemon.env or the runner's .env):
-#   MAX_POINTS - max data points per chart (default 60; samples are bucketed by max)
+#   MAX_POINTS - max data points per line chart (default 60; samples are bucketed by max)
+#   MEM_POINTS - points in the stacked memory chart (default 150; interpolated
+#                when the job has fewer samples so the bars read as smooth areas)
 
 OUTPUT_DIR="${OUTPUT_DIR:-/tmp/gha-monitoring}"
 MAX_POINTS="${MAX_POINTS:-60}"
+MEM_POINTS="${MEM_POINTS:-150}"
 DAEMON_ENV="/usr/local/bin/gha-monitoring/daemon.env"
 
 [ -f "$DAEMON_ENV" ] && source "$DAEMON_ENV"
@@ -40,15 +43,16 @@ VM_LABEL="${VM_NAME:-$(hostname)}"
 # prints either Markdown/Mermaid or ASCII. POSIX awk only (macOS BSD awk).
 # ---------------------------------------------------------------------------
 render() {
-    awk -F',' -v mode="$1" -v maxp="$MAX_POINTS" -v vm="$VM_LABEL" -v file="$(basename "$CSV")" -v ver="${MONITORING_VERSION:-unknown}" '
+    awk -F',' -v mode="$1" -v maxp="$MAX_POINTS" -v memp="$MEM_POINTS" -v vm="$VM_LABEL" -v file="$(basename "$CSV")" -v ver="${MONITORING_VERSION:-unknown}" '
     function secs(ts,   d, t) {            # "YYYY-MM-DD HH:MM:SS" -> seconds (day-aware)
         split(ts, d, " "); split(d[2], t, ":")
         return substr(d[1], 9, 2) * 86400 + t[1] * 3600 + t[2] * 60 + t[3]
     }
     function r1(x) { return sprintf("%.1f", x) }
-    function series(arr,   i, s) {
+    function series(arr, cnt,   i, s) {
+        if (cnt == "") cnt = nb
         s = ""
-        for (i = 1; i <= nb; i++) s = s (i > 1 ? ", " : "") r1(arr[i])
+        for (i = 1; i <= cnt; i++) s = s (i > 1 ? ", " : "") r1(arr[i])
         return "[" s "]"
     }
     function ceilnice(x) {               # round a y-axis max up to something readable
@@ -80,9 +84,9 @@ render() {
         print "    title \"" title "\""
         print "    x-axis \"Elapsed (min)\" 0 --> " r1(dur / 60 > 0.1 ? dur / 60 : 0.1)
         print "    y-axis \"" ylab "\" 0 --> " ymax
-        print "    bar " series(stk3)
-        print "    bar " series(stk2)
-        print "    bar " series(stk1)
+        print "    bar " series(m3, nm)
+        print "    bar " series(m2, nm)
+        print "    bar " series(m1, nm)
         print "```"
     }
     function astacked(title, ymax,   h, row, i, line, thr, c) {
@@ -151,6 +155,27 @@ render() {
         for (b = 1; b <= nb; b++) {          # memory stack from that one sample, so it sums to total
             i = bmi[b]
             bmu[b] = mu[i]; stk1[b] = mu[i]; stk2[b] = mu[i] + mc[i]; stk3[b] = mu[i] + mc[i] + mf[i]
+        }
+        # Memory chart for the summary: finer resolution so the stacked bars read
+        # as smooth areas. Fewer samples than memp -> linear interpolation between
+        # neighbouring samples; more -> bucket by peak used memory as above.
+        nm = memp
+        if (n >= nm) {
+            for (i = 1; i <= n; i++) {
+                b = int((i - 1) * nm / n) + 1
+                if (!(b in mmi) || mu[i] > mu[mmi[b]]) mmi[b] = i
+            }
+            for (b = 1; b <= nm; b++) {
+                i = mmi[b]; m1[b] = mu[i]; m2[b] = mu[i] + mc[i]; m3[b] = mu[i] + mc[i] + mf[i]
+            }
+        } else {
+            for (b = 1; b <= nm; b++) {
+                p = 1 + (b - 1) * (n - 1) / (nm - 1); lo = int(p); f = p - lo; hi = (lo < n ? lo + 1 : n)
+                u  = mu[lo] + (mu[hi] - mu[lo]) * f
+                c  = mc[lo] + (mc[hi] - mc[lo]) * f
+                fr = mf[lo] + (mf[hi] - mf[lo]) * f
+                m1[b] = u; m2[b] = u + c; m3[b] = u + c + fr
+            }
         }
         avgcpu = cpusum / n
         memmax = ceilnice(ptot > ram ? ptot : ram)
