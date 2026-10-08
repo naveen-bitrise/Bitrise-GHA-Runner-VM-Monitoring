@@ -67,10 +67,42 @@ render() {
         print "    line " series(a)
         if (b != "") {
             if (b == "sys")    print "    line " series(bsys)
-            if (b == "cached") print "    line " series(bcached)
             if (b == "load5")  print "    line " series(bl5)
         }
         print "```"
+    }
+    function mstacked(title, ylab, ymax, palette) {
+        # xychart has no native stacking: draw cumulative bars largest-first so
+        # each smaller bar is painted over the bigger one, which reads as a stack.
+        print "```mermaid"
+        print "%%{init: {\"themeVariables\": {\"xyChart\": {\"plotColorPalette\": \"" palette "\"}}}}%%"
+        print "xychart-beta"
+        print "    title \"" title "\""
+        print "    x-axis \"Elapsed (min)\" 0 --> " r1(dur / 60 > 0.1 ? dur / 60 : 0.1)
+        print "    y-axis \"" ylab "\" 0 --> " ymax
+        print "    bar " series(stk3)
+        print "    bar " series(stk2)
+        print "    bar " series(stk1)
+        print "```"
+    }
+    function astacked(title, ymax,   h, row, i, line, thr, c) {
+        h = 8
+        printf "%s (max %s GB)   # used   + reclaimable   . free\n", title, r1(ymax)
+        for (row = h; row >= 1; row--) {
+            thr = ymax * (row - 0.5) / h
+            line = sprintf("%7s |", (row == h ? r1(ymax) : (row == 1 ? "0" : "")))
+            for (i = 1; i <= nb; i++) {
+                c = " "
+                if (stk3[i] >= thr) c = "."
+                if (stk2[i] >= thr) c = "+"
+                if (stk1[i] >= thr) c = "#"
+                line = line c
+            }
+            print line
+        }
+        line = "        +"; for (i = 1; i <= nb; i++) line = line "-"; print line
+        printf "         0%" (nb > 10 ? nb - 9 : 1) "s%s\n", "", r1(dur / 60) " min"
+        print ""
     }
     function ascii(title, unit, arr, ymax,   h, row, i, line, thr) {
         h = 8
@@ -91,7 +123,8 @@ render() {
         n++
         t[n] = secs($1); if (n == 1) t0 = t[n]
         cpu[n] = $2 + $3; sys[n] = $3
-        mu[n] = $6 / 1024; mc[n] = $8 / 1024
+        mu[n] = $6 / 1024; mf[n] = $7 / 1024; mc[n] = $8 / 1024
+        if (mu[n] + mc[n] + mf[n] > ptot) ptot = mu[n] + mc[n] + mf[n]
         l1[n] = $9; l5[n] = $10; sw[n] = $12 / 1024
         if (n == 1) { ram = ($6 + $7 + $8) / 1024; start = $1 }
         stop = $1
@@ -110,14 +143,17 @@ render() {
             b = int((i - 1) * nb / n) + 1
             if (cpu[i] > bcpu[b])  bcpu[b]  = cpu[i]
             if (sys[i] > bsys[b])  bsys[b]  = sys[i]
-            if (mu[i]  > bmu[b])   bmu[b]   = mu[i]
-            if (mc[i]  > bcached[b]) bcached[b] = mc[i]
+            if (!(b in bmi) || mu[i] > mu[bmi[b]]) bmi[b] = i   # sample with peak used memory
             if (l1[i]  > bl1[b])   bl1[b]   = l1[i]
             if (l5[i]  > bl5[b])   bl5[b]   = l5[i]
             if (sw[i]  > bsw[b])   bsw[b]   = sw[i]
         }
+        for (b = 1; b <= nb; b++) {          # memory stack from that one sample, so it sums to total
+            i = bmi[b]
+            bmu[b] = mu[i]; stk1[b] = mu[i]; stk2[b] = mu[i] + mc[i]; stk3[b] = mu[i] + mc[i] + mf[i]
+        }
         avgcpu = cpusum / n
-        memmax = ceilnice(pmu > ram ? pmu : ram)
+        memmax = ceilnice(ptot > ram ? ptot : ram)
         loadmax = ceilnice(pl1)
         if (mode == "summary") {
             print "## 🖥️ Runner VM metrics"
@@ -131,8 +167,8 @@ render() {
             print "**CPU %** — 🔵 user + system · 🟠 system"
             mchart("CPU %", "%", 100, bcpu, "sys", "#2563eb, #f97316")
             print ""
-            print "**Memory (GB)** — 🔵 used · 🟢 reclaimable (cache)"
-            mchart("Memory (GB)", "GB", memmax, bmu, "cached", "#2563eb, #16a34a")
+            print "**Memory (GB)** — stacked: 🔵 used · 🟢 used but reclaimable (cache) · ⚪ free"
+            mstacked("Memory (GB)", "GB", memmax, "#9ca3af, #16a34a, #2563eb")
             print ""
             print "**Load average** — 🔵 1m · 🟣 5m"
             mchart("Load average", "load", loadmax, bl1, "load5", "#2563eb, #9333ea")
@@ -148,7 +184,7 @@ render() {
             printf "CPU avg %s%%  peak %s%%  |  Mem peak %s/%s GB  |  Load1 peak %s  |  Swap peak %s GB\n\n", \
                 r1(avgcpu), r1(pcpu), r1(pmu), r1(ram), r1(pl1), r1(psw)
             ascii("CPU % (user+system)", "%", bcpu, 100)
-            ascii("Memory used (GB)", " GB", bmu, memmax)
+            astacked("Memory (GB)", memmax)
             ascii("Load average (1m)", "", bl1, loadmax)
             if (psw > 0) ascii("Swap used (GB)", " GB", bsw, ceilnice(psw))
         }

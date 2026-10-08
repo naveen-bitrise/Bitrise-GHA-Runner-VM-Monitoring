@@ -14,7 +14,7 @@ Copy the contents of `warmup_runner.sh` into your Bitrise Runner Pool warmup scr
 
 Trigger any workflow that runs on the pool. When the job finishes, `job_summary_hook.sh` runs as part of the job and adds:
 
-- **Job summary** (workflow run → *Summary*): a stats table plus Mermaid line charts for CPU, memory, load average and (if used) swap.
+- **Job summary** (workflow run → *Summary*): a stats table plus Mermaid charts — CPU and load average as lines, memory as a stacked chart (used · used but reclaimable · free), and swap if used.
 - **Job log** (*Complete runner* step → *VM metrics* group): the same stats with ASCII charts.
 
 Charts are capped at 60 points (`MAX_POINTS`); each point is the max of its time bucket so short spikes stay visible.
