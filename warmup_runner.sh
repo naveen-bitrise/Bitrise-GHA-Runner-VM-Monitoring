@@ -5,56 +5,55 @@
 # Usage:
 #   bash warmup_runner.sh
 #
-# Required: set these before running
-#   MONITORING_REPO  - GitHub repo containing this project, e.g. "your-org/your-repo"
-#   METRICS_TOKEN_PLACEHOLDER    - GitHub token with push access to MONITORING_REPO
+# After each job, job_summary_hook.sh posts VM metric charts to the job's
+# summary page and log. No GitHub token is needed.
 #
 # Optional:
-#   VM_NAME          - Identifier for this runner (defaults to hostname)
+#   VM_NAME     - Identifier for this runner shown in the summary (defaults to hostname)
+#   RUNNER_HOME - Directory containing actions-runner/ (defaults to /Users/vagrant)
 
 set -e
 
 MONITORING_REPO="naveen-bitrise/Bitrise-GHA-Runner-VM-Monitoring"
+MONITORING_BRANCH="job-summary"
 SETUP_DIR="/tmp/gha-monitoring-setup"
+INSTALL_DIR="/usr/local/bin/gha-monitoring"
 
-echo "Setting up GHA VM Monitoring from ${MONITORING_REPO}..."
+echo "Setting up GHA VM Monitoring from ${MONITORING_REPO}@${MONITORING_BRANCH}..."
 
 # Clean any previous setup attempt
 rm -rf "$SETUP_DIR"
 
-# Clone the monitoring repo
-git clone "https://github.com/${MONITORING_REPO}.git" "$SETUP_DIR"
+# Clone the monitoring repo (read-only; public clone, no token)
+git clone --depth 1 --branch "$MONITORING_BRANCH" "https://github.com/${MONITORING_REPO}.git" "$SETUP_DIR"
 
 # Install the monitoring daemon
 cd "$SETUP_DIR"
 SKIP_STARTUP_HINT=1 bash install_on_runner.sh
 
-# Persist METRICS_REPO and METRICS_TOKEN so the launchd daemon can read them
-# These are written to a file sourced by monitor_daemon.sh via the plist environment
-DAEMON_ENV_FILE="/usr/local/bin/gha-monitoring/daemon.env"
-cat > "$DAEMON_ENV_FILE" <<EOF
-export METRICS_REPO="${MONITORING_REPO}"
-export METRICS_TOKEN="METRICS_TOKEN_PLACEHOLDER"
+# Settings read by the daemon and the hook
+DAEMON_ENV_FILE="${INSTALL_DIR}/daemon.env"
+cat > "$DAEMON_ENV_FILE" <<ENVEOF
 export VM_NAME="${VM_NAME:-$(hostname)}"
-EOF
-chmod 600 "$DAEMON_ENV_FILE"
+ENVEOF
+chmod 644 "$DAEMON_ENV_FILE"
 
 # Install the post-job hook script
-cp "$SETUP_DIR/push_metrics_hook.sh" /usr/local/bin/gha-monitoring/
-chmod +x /usr/local/bin/gha-monitoring/push_metrics_hook.sh
+cp "$SETUP_DIR/job_summary_hook.sh" "$INSTALL_DIR/"
+chmod +x "$INSTALL_DIR/job_summary_hook.sh"
 
 # Wire the hook into the GHA runner's .env file (create if it doesn't exist yet)
-HOOK_SCRIPT="/usr/local/bin/gha-monitoring/push_metrics_hook.sh"
-RUNNER_ENV="/Users/vagrant/actions-runner/.env"
+HOOK_SCRIPT="${INSTALL_DIR}/job_summary_hook.sh"
+RUNNER_ENV="${RUNNER_HOME:-/Users/vagrant}/actions-runner/.env"
 
-mkdir -p "$(dirname $RUNNER_ENV)"
+mkdir -p "$(dirname "$RUNNER_ENV")"
 grep -v "ACTIONS_RUNNER_HOOK_JOB_COMPLETED" "$RUNNER_ENV" > /tmp/runner_env_tmp 2>/dev/null || true
 echo "ACTIONS_RUNNER_HOOK_JOB_COMPLETED=${HOOK_SCRIPT}" >> /tmp/runner_env_tmp
 cp /tmp/runner_env_tmp "$RUNNER_ENV"
 echo "Runner hook configured in: $RUNNER_ENV"
 
 # Start the daemon now (runs for the lifetime of this VM)
-nohup /usr/local/bin/gha-monitoring/monitor_daemon.sh >> /tmp/gha-monitoring/daemon.log 2>&1 &
+nohup "${INSTALL_DIR}/monitor_daemon.sh" >> /tmp/gha-monitoring/daemon.log 2>&1 &
 echo "Daemon started (PID $!)"
 
 echo ""

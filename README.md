@@ -1,57 +1,27 @@
 # GitHub Actions Runner VM Monitoring
 
-Monitor CPU, memory, load, and swap on Bitrise-hosted GitHub Actions Mac runners. Metrics are automatically collected during each job, pushed to this repo, and visualised in a local Ruby web app.
+Monitor CPU, memory, load, and swap on Bitrise-hosted GitHub Actions Mac runners. Metrics are collected during each job and, when the job finishes, posted as charts to the job's **summary page** and **log** — no token, no repo pushes, no extra services.
 
 ---
 
 ## Quick Start
 
-### 1. Fork this repo
+### 1. Add the warmup script to your Bitrise Runner Pool
 
-Fork `naveen-bitrise/Bitrise-GHA-Runner-VM-Monitoring` to your own GitHub account or org.
+Copy the contents of `warmup_runner.sh` into your Bitrise Runner Pool warmup script configuration. If you use a fork, change `MONITORING_REPO` / `MONITORING_BRANCH` to point at it.
 
-### 2. Create a Fine-Grained PAT
+### 2. Run a GHA job on the Bitrise runner
 
-Go to **GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**:
+Trigger any workflow that runs on the pool. When the job finishes, `job_summary_hook.sh` runs as part of the job and adds:
 
-- **Repository access**: only this forked repo
-- **Permissions → Contents**: `Read and write`
+- **Job summary** (workflow run → *Summary*): a stats table plus Mermaid line charts for CPU, memory, load average and (if used) swap.
+- **Job log** (*Complete runner* step → *VM metrics* group): the same stats with ASCII charts.
 
-### 3. Add the warmup script to your Bitrise Runner Pool
+Charts are capped at 60 points (`MAX_POINTS`); each point is the max of its time bucket so short spikes stay visible.
 
-Copy the contents of `warmup_runner.sh` and paste it into your Bitrise Runner Pool warmup script configuration.
+### 3. (Optional) Local web app
 
-### 4. Replace the repo URL and PAT placeholder
-
-**4a.** Replace the repo URL with your forked repo (currently set to `naveen-bitrise/Bitrise-GHA-Runner-VM-Monitoring`):
-```
-MONITORING_REPO="YOUR_ORG/YOUR_FORKED_REPO"
-```
-
-**4b.** Replace `METRICS_TOKEN_PLACEHOLDER` with the Fine-Grained PAT you created in step 2:
-```
-METRICS_TOKEN="github_pat_xxxx..."
-```
-
-### 5. Run a GHA job on the Bitrise runner
-
-Trigger any GitHub Actions workflow that runs on your Bitrise runner pool. When the job finishes, the runner hook automatically uploads the metrics CSV to the `metrics/` folder in this repo.
-
-### 6. Pull the latest metrics
-
-If you already have the repo cloned locally, pull main to get the new metrics file:
-
-```bash
-git pull origin main
-```
-
-If not, clone the repo first:
-
-```bash
-git clone https://github.com/YOUR_ORG/YOUR_REPO.git
-```
-
-### 7. Start the web app
+The CSV stays on the VM at `/tmp/gha-monitoring/`. To use the Sinatra dashboard, put CSVs under `metrics/<vm-name>/` locally (e.g. from the `main` branch history) and:
 
 ```bash
 cd webapp
@@ -119,10 +89,10 @@ Swap usage indicates the system ran low on physical RAM and started paging to di
 │  Bitrise VM Boot                                        │
 │                                                         │
 │  warmup_runner.sh runs:                                 │
-│    1. Clones this repo                                  │
+│    1. Clones this repo (job-summary branch, no token)   │
 │    2. Installs collect_metrics.sh + monitor_daemon.sh   │
-│    3. Writes daemon.env (repo + PAT credentials)        │
-│    4. Registers push_metrics_hook.sh as                 │
+│    3. Writes daemon.env (VM_NAME)                       │
+│    4. Registers job_summary_hook.sh as                  │
 │       ACTIONS_RUNNER_HOOK_JOB_COMPLETED                 │
 │    5. Starts monitor_daemon.sh in background            │
 └───────────────────────┬─────────────────────────────────┘
@@ -142,24 +112,12 @@ Swap usage indicates the system ran low on physical RAM and started paging to di
 ┌─────────────────────────────────────────────────────────┐
 │  GHA Job Completes                                      │
 │                                                         │
-│  GHA runner invokes push_metrics_hook.sh:               │
+│  GHA runner invokes job_summary_hook.sh:                │
 │    → finds latest CSV in /tmp/gha-monitoring/           │
-│    → clones this repo                                   │
-│    → copies CSV to metrics/<vm-name>/                   │
-│    → commits and pushes to main                         │
+│    → prints stats + ASCII charts to the job log         │
+│    → appends Mermaid charts to $GITHUB_STEP_SUMMARY     │
 │                                                         │
 │  VM is then destroyed                                   │
-└───────────────────────┬─────────────────────────────────┘
-                        │
-                        ▼
-┌─────────────────────────────────────────────────────────┐
-│  Local Machine                                          │
-│                                                         │
-│  git pull → metrics/<vm-name>/monitoring-*.csv          │
-│                                                         │
-│  cd webapp && bash start.sh                             │
-│    → Sinatra app reads metrics/ folder                  │
-│    → Serves 4 interactive charts at :4567               │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -171,7 +129,7 @@ Swap usage indicates the system ran low on physical RAM and started paging to di
 | `install_on_runner.sh` | Copies scripts to `/usr/local/bin/gha-monitoring/` |
 | `monitor_daemon.sh` | Background daemon — detects GHA jobs and starts/stops collection |
 | `collect_metrics.sh` | Samples CPU, memory, load, swap every 5s and writes CSV |
-| `push_metrics_hook.sh` | GHA post-job hook — pushes the CSV to this repo |
+| `job_summary_hook.sh` | GHA post-job hook — posts metric charts to the job summary and log |
 | `metrics/<vm-name>/` | One subfolder per runner VM, one CSV per job |
 | `webapp/app.rb` | Sinatra web app — serves the dashboard |
 | `webapp/views/index.erb` | Dashboard UI with Chart.js graphs |
@@ -183,7 +141,7 @@ Swap usage indicates the system ran low on physical RAM and started paging to di
 ### Runner (macOS)
 - Bash 3.2+
 - Standard macOS utilities: `iostat`, `vm_stat`, `sysctl`, `pagesize`
-- Git (for pushing metrics)
+- Git (to clone this repo during warmup)
 
 ### Local machine (webapp)
 - Ruby 2.7+
@@ -193,7 +151,7 @@ Swap usage indicates the system ran low on physical RAM and started paging to di
 
 ## Troubleshooting
 
-**Metrics not being pushed after job**
+**No charts in the job summary**
 Check that `ACTIONS_RUNNER_HOOK_JOB_COMPLETED` was written to `/Users/vagrant/actions-runner/.env`:
 ```bash
 cat /Users/vagrant/actions-runner/.env
@@ -204,9 +162,6 @@ Check daemon logs on the runner:
 ```bash
 tail -f /tmp/gha-monitoring/daemon.log
 ```
-
-**Push fails with auth error**
-Verify `METRICS_TOKEN` in `/usr/local/bin/gha-monitoring/daemon.env` matches a valid PAT with `Contents: Read and write` on this repo.
 
 **Web app shows no files**
 Confirm you have pulled the latest main branch and that CSV files exist under `metrics/`:

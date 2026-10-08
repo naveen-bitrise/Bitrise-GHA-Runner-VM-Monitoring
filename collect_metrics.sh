@@ -21,11 +21,12 @@ while true; do
 
     # Get CPU usage using iostat (user, system, idle)
     # macOS iostat -c reports CPU percentages already normalized to 0-100%
-    # CPU fields are at positions $10 (user), $11 (system), $12 (idle)
+    # Line ends with: ... us sy id 1m 5m 15m. Index from the end because the number
+    # of disk columns before them varies (fixed $10-$12 sometimes hit the load averages).
     CPU_DATA=$(iostat -c 2 -w 1 | tail -n 1)
-    CPU_USER=$(echo "$CPU_DATA" | awk '{printf "%.2f", $10}')
-    CPU_SYSTEM=$(echo "$CPU_DATA" | awk '{printf "%.2f", $11}')
-    CPU_IDLE=$(echo "$CPU_DATA" | awk '{printf "%.2f", $12}')
+    CPU_USER=$(echo "$CPU_DATA" | awk '{printf "%.2f", $(NF-5)}')
+    CPU_SYSTEM=$(echo "$CPU_DATA" | awk '{printf "%.2f", $(NF-4)}')
+    CPU_IDLE=$(echo "$CPU_DATA" | awk '{printf "%.2f", $(NF-3)}')
     CPU_NICE=0  # Not easily available on macOS
 
     # Get memory usage using vm_stat
