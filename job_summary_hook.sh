@@ -40,7 +40,7 @@ VM_LABEL="${VM_NAME:-$(hostname)}"
 # prints either Markdown/Mermaid or ASCII. POSIX awk only (macOS BSD awk).
 # ---------------------------------------------------------------------------
 render() {
-    awk -F',' -v mode="$1" -v maxp="$MAX_POINTS" -v vm="$VM_LABEL" -v file="$(basename "$CSV")" '
+    awk -F',' -v mode="$1" -v maxp="$MAX_POINTS" -v vm="$VM_LABEL" -v file="$(basename "$CSV")" -v ver="${MONITORING_VERSION:-unknown}" '
     function secs(ts,   d, t) {            # "YYYY-MM-DD HH:MM:SS" -> seconds (day-aware)
         split(ts, d, " "); split(d[2], t, ":")
         return substr(d[1], 9, 2) * 86400 + t[1] * 3600 + t[2] * 60 + t[3]
@@ -178,8 +178,9 @@ render() {
                 mchart("Swap used (GB)", "GB", ceilnice(psw), bsw, "", "#dc2626")
             }
             print ""
-            print "<sub>Each point is the max of its time bucket (" nb " points from " n " samples).</sub>"
+            print "<sub>Each point is the max of its time bucket (" nb " points from " n " samples) · monitoring " ver "</sub>"
         } else {
+            print "Monitoring version: " ver
             printf "VM: %s  |  %d samples  |  %s -> %s (%s min)\n", vm, n, start, stop, r1(dur / 60)
             printf "CPU avg %s%%  peak %s%%  |  Mem peak %s/%s GB  |  Load1 peak %s  |  Swap peak %s GB\n\n", \
                 r1(avgcpu), r1(pcpu), r1(pmu), r1(ram), r1(pl1), r1(psw)

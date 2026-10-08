@@ -35,8 +35,11 @@ SKIP_STARTUP_HINT=1 bash install_on_runner.sh
 
 # Settings read by the daemon and the hook
 DAEMON_ENV_FILE="${INSTALL_DIR}/daemon.env"
+MONITORING_COMMIT=$(git -C "$SETUP_DIR" rev-parse --short HEAD 2>/dev/null || echo unknown)
+echo "Installed ${MONITORING_BRANCH}@${MONITORING_COMMIT}"
 cat > "$DAEMON_ENV_FILE" <<ENVEOF
 export VM_NAME="${VM_NAME:-$(hostname)}"
+export MONITORING_VERSION="${MONITORING_BRANCH}@${MONITORING_COMMIT}"
 ENVEOF
 chmod 644 "$DAEMON_ENV_FILE"
 
