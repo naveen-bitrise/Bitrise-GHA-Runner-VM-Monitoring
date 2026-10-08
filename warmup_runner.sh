@@ -10,7 +10,9 @@
 #
 # Optional:
 #   VM_NAME     - Identifier for this runner shown in the summary (defaults to hostname)
-#   RUNNER_HOME - Directory containing actions-runner/ (defaults to /Users/vagrant)
+#   RUNNER_HOME - Directory containing actions-runner/ (defaults to $HOME)
+#
+# Works on macOS (launchd) and Linux (systemd, or nohup fallback).
 
 set -e
 
@@ -44,7 +46,7 @@ chmod +x "$INSTALL_DIR/job_summary_hook.sh"
 
 # Wire the hook into the GHA runner's .env file (create if it doesn't exist yet)
 HOOK_SCRIPT="${INSTALL_DIR}/job_summary_hook.sh"
-RUNNER_ENV="${RUNNER_HOME:-/Users/vagrant}/actions-runner/.env"
+RUNNER_ENV="${RUNNER_HOME:-$HOME}/actions-runner/.env"
 
 mkdir -p "$(dirname "$RUNNER_ENV")"
 grep -v "ACTIONS_RUNNER_HOOK_JOB_COMPLETED" "$RUNNER_ENV" > /tmp/runner_env_tmp 2>/dev/null || true
@@ -52,9 +54,14 @@ echo "ACTIONS_RUNNER_HOOK_JOB_COMPLETED=${HOOK_SCRIPT}" >> /tmp/runner_env_tmp
 cp /tmp/runner_env_tmp "$RUNNER_ENV"
 echo "Runner hook configured in: $RUNNER_ENV"
 
-# Start the daemon now (runs for the lifetime of this VM)
-nohup "${INSTALL_DIR}/monitor_daemon.sh" >> /tmp/gha-monitoring/daemon.log 2>&1 &
-echo "Daemon started (PID $!)"
+# Start the daemon now (runs for the lifetime of this VM).
+# Skip on Linux when systemd is already managing it (install_on_runner.sh as root).
+if [[ "$(uname)" == "Darwin" ]] || ! systemctl is-active --quiet gha-monitor 2>/dev/null; then
+  nohup "${INSTALL_DIR}/monitor_daemon.sh" >> /tmp/gha-monitoring/daemon.log 2>&1 &
+  echo "Daemon started (PID $!)"
+else
+  echo "Daemon already running via systemd"
+fi
 
 echo ""
 echo "GHA VM Monitoring installed and running."

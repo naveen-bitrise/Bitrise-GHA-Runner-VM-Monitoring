@@ -1,6 +1,6 @@
 # GitHub Actions Runner VM Monitoring
 
-Monitor CPU, memory, load, and swap on Bitrise-hosted GitHub Actions Mac runners. Metrics are collected during each job and, when the job finishes, posted as charts to the job's **summary page** and **log** — no token, no repo pushes, no extra services.
+Monitor CPU, memory, load, and swap on Bitrise-hosted GitHub Actions runners (macOS and Linux). Metrics are collected during each job and, when the job finishes, posted as charts to the job's **summary page** and **log** — no token, no repo pushes, no extra services.
 
 ---
 
@@ -126,9 +126,9 @@ Swap usage indicates the system ran low on physical RAM and started paging to di
 | File | Purpose |
 |---|---|
 | `warmup_runner.sh` | VM boot script — installs monitoring and starts the daemon |
-| `install_on_runner.sh` | Copies scripts to `/usr/local/bin/gha-monitoring/` |
+| `install_on_runner.sh` | Copies scripts to `/usr/local/bin/gha-monitoring/`; sets up launchd (macOS) or systemd (Linux) |
 | `monitor_daemon.sh` | Background daemon — detects GHA jobs and starts/stops collection |
-| `collect_metrics.sh` | Samples CPU, memory, load, swap every 5s and writes CSV |
+| `collect_metrics.sh` | Samples CPU, memory, load, swap every 5s and writes CSV (macOS + Linux) |
 | `job_summary_hook.sh` | GHA post-job hook — posts metric charts to the job summary and log |
 | `metrics/<vm-name>/` | One subfolder per runner VM, one CSV per job |
 | `webapp/app.rb` | Sinatra web app — serves the dashboard |
@@ -142,6 +142,18 @@ Swap usage indicates the system ran low on physical RAM and started paging to di
 - Bash 3.2+
 - Standard macOS utilities: `iostat`, `vm_stat`, `sysctl`, `pagesize`
 - Git (to clone this repo during warmup)
+
+### Runner (Linux)
+- Bash, `awk`, `/proc` (`stat`, `meminfo`, `loadavg`)
+- systemd for auto-start when the warmup runs as root (falls back to `nohup`)
+- Git (to clone this repo during warmup)
+- If the runner isn't in `$HOME/actions-runner`, set `RUNNER_HOME` before running `warmup_runner.sh`
+
+### Tests
+```bash
+bash tests/test_e1_collect_metrics.sh   # CSV format + Linux values against mock /proc
+bash tests/test_e3_install_on_runner.sh # installer copies scripts, has systemd branch
+```
 
 ### Local machine (webapp)
 - Ruby 2.7+
