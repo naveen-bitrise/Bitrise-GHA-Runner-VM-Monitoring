@@ -8,7 +8,7 @@ DAEMON_DIR="$(dirname "$0")"
 
 MONITOR_SCRIPT="${DAEMON_DIR}/collect_metrics.sh"
 OUTPUT_DIR="/tmp/gha-monitoring"
-CHECK_INTERVAL=5
+CHECK_INTERVAL=1   # cheap pgrep; detects job start within ~1s
 MONITOR_PID=""
 CURRENT_JOB_ID=""
 

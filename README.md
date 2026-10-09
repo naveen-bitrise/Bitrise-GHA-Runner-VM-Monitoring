@@ -14,10 +14,10 @@ Copy the contents of `warmup_runner.sh` into your Bitrise Runner Pool warmup scr
 
 Trigger any workflow that runs on the pool. When the job finishes, `job_summary_hook.sh` runs as part of the job and adds:
 
-- **Job summary** (workflow run → *Summary*): a stats table, then two collapsible sections with charts side by side — **CPU & memory** (open; memory stacked as used · reclaimable · free) and **Load & swap** (collapsed).
+- **Job summary** (workflow run → *Summary*): a stats table, then two collapsible sections — **CPU & memory** (open; memory stacked as used · reclaimable · free) and **Load & swap** (collapsed).
 - **Job log** (*Complete runner* step → *VM metrics* group): the same stats with ASCII charts.
 
-Set `SUMMARY_LAYOUT=full` (in the runner's `.env`) for one full-width chart per row instead of side by side. Charts are capped at 60 points (`MAX_POINTS`); each point is the max of its time bucket so short spikes stay visible.
+Charts are full width, one per row; set `SUMMARY_LAYOUT=side` (in the runner's `.env`) for two per row (smaller — GitHub sizes them to the table cell). Jobs too short for charts still get a one-line summary. Charts are capped at 60 points (`MAX_POINTS`); each point is the max of its time bucket so short spikes stay visible.
 
 ### 3. (Optional) Local web app
 

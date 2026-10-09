@@ -72,7 +72,6 @@ while true; do
         SWAP_USED=${SWAP_USED:-0}
         SWAP_FREE=${SWAP_FREE:-0}
 
-        sleep "$INTERVAL"
 
     else
         # ------------------------------------------------------------------ Linux
@@ -145,4 +144,8 @@ while true; do
     if [[ "$MAX_SAMPLES" -gt 0 && "$SAMPLE_COUNT" -ge "$MAX_SAMPLES" ]]; then
         break
     fi
+
+    # macOS: sleep after writing so the first sample lands ~1s after the job starts
+    # (short jobs used to finish before a second sample existed).
+    [[ "$(uname)" == "Darwin" ]] && sleep "$INTERVAL"
 done

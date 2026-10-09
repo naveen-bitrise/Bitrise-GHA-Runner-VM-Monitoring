@@ -11,8 +11,8 @@
 #
 # Optional env (set in daemon.env or the runner's .env):
 #   MAX_POINTS - max data points per line chart (default 60; samples are bucketed by max)
-#   SUMMARY_LAYOUT - "side" (default): charts side by side in full-width tables;
-#                    "full": one chart per row at full width
+#   SUMMARY_LAYOUT - "full" (default): one chart per row at full width;
+#                    "side": two charts per row (GitHub sizes them to the cell, so they're small)
 #   MEM_POINTS - points in the stacked memory chart (default 150; interpolated
 #                when the job has fewer samples so the bars read as smooth areas)
 
@@ -28,7 +28,7 @@ DAEMON_ENV="/usr/local/bin/gha-monitoring/daemon.env"
 if [ -z "$MONITORING_VERSION" ] && [ -d /tmp/gha-monitoring-setup/.git ]; then
     MONITORING_VERSION="$(git -C /tmp/gha-monitoring-setup rev-parse --abbrev-ref HEAD 2>/dev/null)@$(git -C /tmp/gha-monitoring-setup rev-parse --short HEAD 2>/dev/null)"
 fi
-SUMMARY_LAYOUT="${SUMMARY_LAYOUT:-side}"
+SUMMARY_LAYOUT="${SUMMARY_LAYOUT:-full}"
 
 CSV=$(ls -t "$OUTPUT_DIR"/monitoring-*.csv 2>/dev/null | head -1)
 
@@ -39,7 +39,18 @@ fi
 
 ROWS=$(($(wc -l < "$CSV") - 1))
 if [ "$ROWS" -lt 2 ]; then
-    echo "job_summary_hook: only $ROWS sample(s) in $(basename "$CSV"), skipping"
+    # Still leave a trace in the summary so every job shows up.
+    echo "job_summary_hook: only $ROWS sample(s) in $(basename "$CSV") - job too short for charts"
+    if [ -n "$GITHUB_STEP_SUMMARY" ]; then
+        {
+            echo "## 🖥️ Runner VM metrics"
+            echo ""
+            echo "\`${VM_NAME:-$(hostname)}\` · job too short for charts ($ROWS sample(s) in \`$(basename "$CSV")\`)."
+            [ "$ROWS" -eq 1 ] && tail -1 "$CSV" | awk -F',' '{ printf "\n| CPU | Memory used | Load (1m) | Swap used |\n|---|---|---|---|\n| %.1f%% | %.1f / %.1f GB | %s | %.1f GB |\n", $2+$3, $6/1024, ($6+$7+$8)/1024, $9, $12/1024 }'
+            echo ""
+            echo "<sub>monitoring ${MONITORING_VERSION:-unknown}</sub>"
+        } >> "$GITHUB_STEP_SUMMARY"
+    fi
     exit 0
 fi
 
