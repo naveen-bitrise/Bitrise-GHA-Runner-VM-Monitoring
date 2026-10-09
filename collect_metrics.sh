@@ -40,27 +40,25 @@ while true; do
         CPU_IDLE=$(echo "$CPU_DATA"   | awk '{printf "%.2f", $(NF-3)}')
         CPU_NICE=0  # not easily available on macOS
 
-        # Memory — vm_stat + hw.memsize
-        #   used        = active + wired + compressed (pages occupied by compressor)
-        #   reclaimable = inactive + speculative (file cache the kernel can drop)
-        #   free        = physical RAM - used - reclaimable
-        # Deriving free from hw.memsize keeps used + reclaimable + free equal to the
-        # VM's RAM; summing vm_stat's own buckets drifts as pages move into the
-        # compressor/speculative pools.
+        # Memory — same definitions as Telegraf/gopsutil (Bitrise "VM resource usages"
+        # dashboard), so the numbers tally:
+        #   free        = kernel free_count = vm_stat "Pages free" + "Pages speculative"
+        #                 (vm_stat subtracts speculative from free when printing)
+        #   reclaimable = inactive                      (dashboard: available - free)
+        #   used        = hw.memsize - inactive - free  (gopsutil "used")
+        # The three always add up to the VM's RAM.
         PAGE_SIZE=$(pagesize)
-        read -r PAGES_ACTIVE PAGES_WIRED PAGES_COMPRESSED PAGES_INACTIVE PAGES_SPECULATIVE <<< "$(vm_stat | awk -F: '
+        read -r PAGES_FREE PAGES_SPECULATIVE PAGES_INACTIVE <<< "$(vm_stat | awk -F: '
             { gsub(/[ .]/, "", $2) }
-            /^Pages active/                 { a = $2 }
-            /^Pages wired down/             { w = $2 }
-            /^Pages occupied by compressor/ { c = $2 }
-            /^Pages inactive/               { i = $2 }
-            /^Pages speculative/            { s = $2 }
-            END { print a+0, w+0, c+0, i+0, s+0 }')"
+            /^Pages free/        { f = $2 }
+            /^Pages speculative/ { s = $2 }
+            /^Pages inactive/    { i = $2 }
+            END { print f+0, s+0, i+0 }')"
         MEMORY_TOTAL_MB=$(( $(sysctl -n hw.memsize) / 1024 / 1024 ))
-        MEMORY_USED_MB=$(( (PAGES_ACTIVE + PAGES_WIRED + PAGES_COMPRESSED) * PAGE_SIZE / 1024 / 1024 ))
-        MEMORY_CACHED_MB=$(( (PAGES_INACTIVE + PAGES_SPECULATIVE) * PAGE_SIZE / 1024 / 1024 ))
-        MEMORY_FREE_MB=$(( MEMORY_TOTAL_MB - MEMORY_USED_MB - MEMORY_CACHED_MB ))
-        [[ $MEMORY_FREE_MB -lt 0 ]] && MEMORY_FREE_MB=0
+        MEMORY_FREE_MB=$(( (PAGES_FREE + PAGES_SPECULATIVE) * PAGE_SIZE / 1024 / 1024 ))
+        MEMORY_CACHED_MB=$(( PAGES_INACTIVE * PAGE_SIZE / 1024 / 1024 ))
+        MEMORY_USED_MB=$(( MEMORY_TOTAL_MB - MEMORY_FREE_MB - MEMORY_CACHED_MB ))
+        [[ $MEMORY_USED_MB -lt 0 ]] && MEMORY_USED_MB=0
 
         # Load average — sysctl
         LOAD_AVG=$(sysctl -n vm.loadavg | awk '{print $2","$3","$4}')
