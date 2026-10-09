@@ -11,6 +11,8 @@
 #
 # Optional env (set in daemon.env or the runner's .env):
 #   MAX_POINTS - max data points per line chart (default 60; samples are bucketed by max)
+#   SUMMARY_LAYOUT - "side" (default): charts side by side in full-width tables;
+#                    "full": one chart per row at full width
 #   MEM_POINTS - points in the stacked memory chart (default 150; interpolated
 #                when the job has fewer samples so the bars read as smooth areas)
 
@@ -20,6 +22,13 @@ MEM_POINTS="${MEM_POINTS:-150}"
 DAEMON_ENV="/usr/local/bin/gha-monitoring/daemon.env"
 
 [ -f "$DAEMON_ENV" ] && source "$DAEMON_ENV"
+
+# Fallback when daemon.env predates MONITORING_VERSION (older pasted warmup script):
+# read the commit from the clone the warmup left behind.
+if [ -z "$MONITORING_VERSION" ] && [ -d /tmp/gha-monitoring-setup/.git ]; then
+    MONITORING_VERSION="$(git -C /tmp/gha-monitoring-setup rev-parse --abbrev-ref HEAD 2>/dev/null)@$(git -C /tmp/gha-monitoring-setup rev-parse --short HEAD 2>/dev/null)"
+fi
+SUMMARY_LAYOUT="${SUMMARY_LAYOUT:-side}"
 
 CSV=$(ls -t "$OUTPUT_DIR"/monitoring-*.csv 2>/dev/null | head -1)
 
@@ -43,7 +52,7 @@ VM_LABEL="${VM_NAME:-$(hostname)}"
 # prints either Markdown/Mermaid or ASCII. POSIX awk only (macOS BSD awk).
 # ---------------------------------------------------------------------------
 render() {
-    awk -F',' -v mode="$1" -v maxp="$MAX_POINTS" -v memp="$MEM_POINTS" -v vm="$VM_LABEL" -v file="$(basename "$CSV")" -v ver="${MONITORING_VERSION:-unknown}" '
+    awk -F',' -v mode="$1" -v maxp="$MAX_POINTS" -v memp="$MEM_POINTS" -v vm="$VM_LABEL" -v file="$(basename "$CSV")" -v ver="${MONITORING_VERSION:-unknown}" -v layout="$SUMMARY_LAYOUT" '
     function secs(ts,   d, t) {            # "YYYY-MM-DD HH:MM:SS" -> seconds (day-aware)
         split(ts, d, " "); split(d[2], t, ":")
         return substr(d[1], 9, 2) * 86400 + t[1] * 3600 + t[2] * 60 + t[3]
@@ -63,7 +72,7 @@ render() {
     }
     function mchart(title, ylab, ymax, a, b, palette) {
         print "```mermaid"
-        print "%%{init: {\"themeVariables\": {\"xyChart\": {\"plotColorPalette\": \"" palette "\"}}}}%%"
+        print "%%{init: {\"xyChart\": {\"width\": 900, \"height\": 500}, \"themeVariables\": {\"xyChart\": {\"plotColorPalette\": \"" palette "\"}}}}%%"
         print "xychart-beta"
         print "    title \"" title "\""
         print "    x-axis \"Elapsed (min)\" 0 --> " r1(dur / 60 > 0.1 ? dur / 60 : 0.1)
@@ -79,7 +88,7 @@ render() {
         # xychart has no native stacking: draw cumulative bars largest-first so
         # each smaller bar is painted over the bigger one, which reads as a stack.
         print "```mermaid"
-        print "%%{init: {\"themeVariables\": {\"xyChart\": {\"plotColorPalette\": \"" palette "\"}}}}%%"
+        print "%%{init: {\"xyChart\": {\"width\": 900, \"height\": 500}, \"themeVariables\": {\"xyChart\": {\"plotColorPalette\": \"" palette "\"}}}}%%"
         print "xychart-beta"
         print "    title \"" title "\""
         print "    x-axis \"Elapsed (min)\" 0 --> " r1(dur / 60 > 0.1 ? dur / 60 : 0.1)
@@ -108,6 +117,11 @@ render() {
         printf "         0%" (nb > 10 ? nb - 9 : 1) "s%s\n", "", r1(dur / 60) " min"
         print ""
     }
+    # Layout helpers: side-by-side = a 100%-wide two-cell table; full = plain rows.
+    # Blank lines around content are required for GitHub to render Markdown in <td>.
+    function row_open()  { if (layout == "side") { print "<table width=\"100%\"><tr><td width=\"50%\" valign=\"top\">"; print "" } }
+    function row_mid()   { print ""; if (layout == "side") { print "</td><td width=\"50%\" valign=\"top\">"; print "" } }
+    function row_close() { print ""; if (layout == "side") print "</td></tr></table>" }
     function ascii(title, unit, arr, ymax,   h, row, i, line, thr) {
         h = 8
         printf "%s (max %s%s)\n", title, r1(ymax), unit
@@ -189,43 +203,34 @@ render() {
             print "|---|---|---|---|---|"
             printf "| %s%% | %s%% | %s / %s GB | %s | %s GB |\n", r1(avgcpu), r1(pcpu), r1(pmu), r1(ram), r1(pl1), r1(psw)
             print ""
-            # Two collapsible sections, each a two-column table. Blank lines around
-            # the fenced blocks are required for GitHub to render Markdown in <td>.
+            # Two collapsible sections, each with two charts (see row_* helpers).
             print "<details open>"
             print "<summary><b>CPU & memory</b> — CPU peak " r1(pcpu) "% · memory peak " r1(pmu) " / " r1(ram) " GB</summary>"
             print ""
-            print "<table><tr><td width=\"50%\" valign=\"top\">"
-            print ""
+            row_open()
             print "**CPU %** — 🔵 user + system · 🟠 system"
             print ""
             mchart("CPU %", "%", 100, bcpu, "sys", "#2563eb, #f97316")
-            print ""
-            print "</td><td width=\"50%\" valign=\"top\">"
-            print ""
+            row_mid()
             print "**Memory (GB)** — 🔵 used · 🟢 reclaimable · ⚪ free"
             print ""
             mstacked("Memory (GB)", "GB", memmax, "#9ca3af, #16a34a, #2563eb")
-            print ""
-            print "</td></tr></table>"
+            row_close()
             print "</details>"
             print ""
             print "<details>"
             print "<summary><b>Load & swap</b> — load peak " r1(pl1) " · swap peak " r1(psw) " GB" (psw > 0 ? " ⚠️" : "") "</summary>"
             print ""
-            print "<table><tr><td width=\"50%\" valign=\"top\">"
-            print ""
+            row_open()
             print "**Load average** — 🔵 1m · 🟣 5m"
             print ""
             mchart("Load average", "load", loadmax, bl1, "load5", "#2563eb, #9333ea")
-            print ""
-            print "</td><td width=\"50%\" valign=\"top\">"
-            print ""
+            row_mid()
             print "**Swap used (GB)** — non-zero means the VM ran out of RAM"
             print ""
             if (psw > 0) mchart("Swap used (GB)", "GB", ceilnice(psw), bsw, "", "#dc2626")
             else         print "✅ No swap used during this job."
-            print ""
-            print "</td></tr></table>"
+            row_close()
             print "</details>"
             print ""
             print "<sub>Each point is the max of its time bucket (" nb " points from " n " samples) · monitoring " ver "</sub>"

@@ -17,7 +17,7 @@ Trigger any workflow that runs on the pool. When the job finishes, `job_summary_
 - **Job summary** (workflow run → *Summary*): a stats table, then two collapsible sections with charts side by side — **CPU & memory** (open; memory stacked as used · reclaimable · free) and **Load & swap** (collapsed).
 - **Job log** (*Complete runner* step → *VM metrics* group): the same stats with ASCII charts.
 
-Charts are capped at 60 points (`MAX_POINTS`); each point is the max of its time bucket so short spikes stay visible.
+Set `SUMMARY_LAYOUT=full` (in the runner's `.env`) for one full-width chart per row instead of side by side. Charts are capped at 60 points (`MAX_POINTS`); each point is the max of its time bucket so short spikes stay visible.
 
 ### 3. (Optional) Local web app
 
