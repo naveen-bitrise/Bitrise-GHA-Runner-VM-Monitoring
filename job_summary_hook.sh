@@ -55,6 +55,9 @@ if [ "$ROWS" -lt 2 ]; then
 fi
 
 VM_LABEL="${VM_NAME:-$(hostname)}"
+# vCPU count: reference line on the load chart (load above it = work queued for CPU)
+NCPU=$( (sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null) | head -1 )
+NCPU="${NCPU:-0}"
 
 # ---------------------------------------------------------------------------
 # render <mode>   mode = summary | log
@@ -63,7 +66,7 @@ VM_LABEL="${VM_NAME:-$(hostname)}"
 # prints either Markdown/Mermaid or ASCII. POSIX awk only (macOS BSD awk).
 # ---------------------------------------------------------------------------
 render() {
-    awk -F',' -v mode="$1" -v maxp="$MAX_POINTS" -v memp="$MEM_POINTS" -v vm="$VM_LABEL" -v file="$(basename "$CSV")" -v ver="${MONITORING_VERSION:-unknown}" -v layout="$SUMMARY_LAYOUT" '
+    awk -F',' -v mode="$1" -v maxp="$MAX_POINTS" -v memp="$MEM_POINTS" -v vm="$VM_LABEL" -v file="$(basename "$CSV")" -v ver="${MONITORING_VERSION:-unknown}" -v layout="$SUMMARY_LAYOUT" -v ncpu="$NCPU" '
     function secs(ts,   d, t) {            # "YYYY-MM-DD HH:MM:SS" -> seconds (day-aware)
         split(ts, d, " "); split(d[2], t, ":")
         return substr(d[1], 9, 2) * 86400 + t[1] * 3600 + t[2] * 60 + t[3]
@@ -79,6 +82,7 @@ render() {
         if (x <= 1) return 1
         if (x <= 5) return int(x + 0.999)
         if (x <= 20) return int((x + 1.999) / 2) * 2
+        if (x <= 50) return int((x + 4.999) / 5) * 5
         return int((x + 9.999) / 10) * 10
     }
     function mchart(title, ylab, ymax, a, b, palette) {
@@ -91,7 +95,11 @@ render() {
         print "    line " series(a)
         if (b != "") {
             if (b == "sys")    print "    line " series(bsys)
-            if (b == "load5")  print "    line " series(bl5)
+            if (b == "load5") {
+                print "    line " series(bl5)
+                print "    line " series(bl15)
+                if (ncpu > 0) print "    line " series(bcpuref)
+            }
         }
         print "```"
     }
@@ -154,7 +162,7 @@ render() {
         cpu[n] = $2 + $3; sys[n] = $3
         mu[n] = $6 / 1024; mf[n] = $7 / 1024; mc[n] = $8 / 1024
         if (mu[n] + mc[n] + mf[n] > ptot) ptot = mu[n] + mc[n] + mf[n]
-        l1[n] = $9; l5[n] = $10; sw[n] = $12 / 1024
+        l1[n] = $9; l5[n] = $10; l15[n] = $11; sw[n] = $12 / 1024
         if (n == 1) { ram = ($6 + $7 + $8) / 1024; start = $1 }
         stop = $1
         cpusum += cpu[n]
@@ -175,6 +183,8 @@ render() {
             if (!(b in bmi) || mu[i] > mu[bmi[b]]) bmi[b] = i   # sample with peak used memory
             if (l1[i]  > bl1[b])   bl1[b]   = l1[i]
             if (l5[i]  > bl5[b])   bl5[b]   = l5[i]
+            if (l15[i] > bl15[b])  bl15[b]  = l15[i]
+            bcpuref[b] = ncpu
             if (sw[i]  > bsw[b])   bsw[b]   = sw[i]
         }
         for (b = 1; b <= nb; b++) {          # memory stack from that one sample, so it sums to total
@@ -204,7 +214,8 @@ render() {
         }
         avgcpu = cpusum / n
         memmax = ceilnice(ptot > ram ? ptot : ram)
-        loadmax = ceilnice(pl1)
+        loadmax = ceilnice(pl1 > ncpu ? pl1 : ncpu)
+        loadx = (ncpu > 0 ? sprintf(" (%.1f× %d vCPUs)", pl1 / ncpu, ncpu) : "")
         if (mode == "summary") {
             print "## 🖥️ Runner VM metrics"
             print ""
@@ -230,12 +241,12 @@ render() {
             print "</details>"
             print ""
             print "<details>"
-            print "<summary><b>Load & swap</b> — load peak " r1(pl1) " · swap peak " r1(psw) " GB" (psw > 0 ? " ⚠️" : "") "</summary>"
+            print "<summary><b>Load & swap</b> — load peak " r1(pl1) loadx " · swap peak " r1(psw) " GB" (psw > 0 ? " ⚠️" : "") "</summary>"
             print ""
             row_open()
-            print "**Load average** — 🔵 1m · 🟣 5m"
+            print "**Load average** — 🔵 1m · 🟣 5m · 🟡 15m" (ncpu > 0 ? " · 🔴 vCPUs (" ncpu ")" : "")
             print ""
-            mchart("Load average", "load", loadmax, bl1, "load5", "#2563eb, #9333ea")
+            mchart("Load average", "load", loadmax, bl1, "load5", "#2563eb, #9333ea, #eab308, #dc2626")
             row_mid()
             print "**Swap used (GB)** — non-zero means the VM ran out of RAM"
             print ""
@@ -248,8 +259,8 @@ render() {
         } else {
             print "Monitoring version: " ver
             printf "VM: %s  |  %d samples  |  %s -> %s (%s min)\n", vm, n, start, stop, r1(dur / 60)
-            printf "CPU avg %s%%  peak %s%%  |  Mem peak %s/%s GB  |  Load1 peak %s  |  Swap peak %s GB\n\n", \
-                r1(avgcpu), r1(pcpu), r1(pmu), r1(ram), r1(pl1), r1(psw)
+            printf "CPU avg %s%%  peak %s%%  |  Mem peak %s/%s GB  |  Load1 peak %s%s  |  Swap peak %s GB\n\n", \
+                r1(avgcpu), r1(pcpu), r1(pmu), r1(ram), r1(pl1), loadx, r1(psw)
             ascii("CPU % (user+system)", "%", bcpu, 100)
             astacked("Memory (GB)", memmax)
             ascii("Load average (1m)", "", bl1, loadmax)
